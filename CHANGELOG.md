@@ -7,6 +7,22 @@ All notable changes to Tomato Play. Format based on
 
 ### Added
 
+- `-T, --trending`: browse what's currently popular on aniwatch's home page
+  without typing a search.
+- `-L, --lucky-tomato`: pluck a random *playable* show off the vine by
+  shuffling the trending list and probing until the first stream-able title
+  is found, then play it immediately.
+- **Response cache** (`~/.cache/tomato-play`, configurable via
+  `TOMATOPLAY_CACHE_DIR`/`TOMATOPLAY_CACHE_TTL`): episode lists, m3u8 probes and
+  the trending list are cached on disk (m3u8 fresh for 30 min, rest a day), so
+  repeat searches and `--trending`/`--lucky-tomato` are near-instant and hammer
+  the scrapers far less.
+- Shared `resolve_title`/`resolve_episodes` steps used by search, history,
+  trending and the lucky picker.
+- Fixed `--continue`/history: it previously died with "Unknown provider:
+  history" because history entries don't store a provider; they now resolve
+  through aniwatch.
+
 - `-H, --history` flag to print the watch history (series and last-watched
   episode). Sits alongside the existing `-c/--continue` and `-D/--delete`
   history controls.

@@ -102,6 +102,8 @@ tp -h
 ```
 -s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, youtube)
 -c, --continue         Continue watching from history
+-T, --trending         Browse what's popular right now
+-L, --lucky-tomato     Pluck a random (playable) show off the vine
 -d, --download         Download the video instead of playing it
 -D, --delete           Delete history
 -H, --history          View the watch history
@@ -132,6 +134,8 @@ Environment variables:
 - `TOMATOPLAY_DOWNLOAD_DIR` - Download directory
 - `TOMATOPLAY_MENU` - Menu program (fzf, rofi, dmenu)
 - `TOMATOPLAY_MODE` - Default audio track (sub, dub)
+- `TOMATOPLAY_CACHE_DIR` - Override the response-cache directory (default: `~/.cache/tomato-play`)
+- `TOMATOPLAY_CACHE_TTL` - Days before the whole cache is wiped (default: 7)
 
 ## Contributing
 
