@@ -1,0 +1,111 @@
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.0.0" "User Commands"
+.SH NAME
+tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
+.SH SYNOPSIS
+.B tomatoplay
+[\fIoptions\fR] [\fIquery\fR]
+.br
+.B tp
+[\fIoptions\fR] [\fIquery\fR]
+.SH DESCRIPTION
+.B tomatoplay
+is a CLI tool to search and stream anime, movies, and TV series from multiple
+sources. It provides interactive search via fzf/rofi/dmenu, quality selection,
+download support, and a watch history.
+.SH OPTIONS
+.TP
+.B -s, --source SOURCE
+Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube.
+.TP
+.B -c, --continue
+Continue watching from history.
+.TP
+.B -d, --download
+Download the video instead of playing it.
+.TP
+.B -D, --delete
+Delete history.
+.TP
+.B -q, --quality
+Specify the video quality.
+.TP
+.B -v, --vlc
+Use VLC to play the video.
+.TP
+.B -V, --version
+Show the version of the script.
+.TP
+.B -h, --help
+Show help.
+.TP
+.B -e, --episode, -r, --range
+Specify the number of episodes to watch (e.g. 5, or 1-10).
+.TP
+.B -a, --audio AUDIO
+Choose the audio track for the current episode: \fBsub\fR (subtitled,
+Japanese) or \fBdub\fR (English dub). When unset and the series has an
+English dub, you will be asked interactively after picking an episode;
+selecting another audio (where available) hides the prompt. Use
+\fBchange_audio\fR in the playback menu to switch during playback.
+.TP
+.B --dub
+Play the English dubbed version (same as \fB-a dub\fR).
+.TP
+.B --rofi
+Use rofi instead of fzf for the interactive menu.
+.TP
+.B --dmenu
+Use dmenu instead of fzf for the interactive menu.
+.TP
+.B --no-detach
+Don't detach the player (useful for in-terminal playback, mpv only).
+.TP
+.B --exit-after-play
+Exit the player and return the player exit code.
+.TP
+.B -U, --update
+Update the script.
+.SH ENVIRONMENT
+.TP
+.B TOMATOPLAY_DEFAULT_SOURCE
+Default source (default: all).
+.TP
+.B TOMATOPLAY_PLAYER
+Default player.
+.TP
+.B TOMATOPLAY_QUALITY
+Default quality.
+.TP
+.B TOMATOPLAY_DOWNLOAD_DIR
+Download directory.
+.TP
+.B TOMATOPLAY_MENU
+Menu program (fzf, rofi, dmenu).
+.TP
+.B TOMATOPLAY_MODE
+Default audio track (sub, dub). Acts the same as passing \fB-a\fR.
+.SH EXAMPLES
+.TP
+Search all sources for naruto
+.B tp naruto
+.TP
+Search a specific source
+.B tp -s gogoanime "one punch"
+.TP
+Watch specific episodes
+.B tp -e 1-10 "one piece"
+.TP
+Download episodes
+.B tp -d "naruto" -e 1-10
+.SH DEPENDENCIES
+curl, grep, sed, mpv or vlc, yt-dlp or ffmpeg, fzf.
+.SH FILES
+.TP
+.B ~/.local/share/tomatoplay/history
+Watch history.
+.SH LICENSE
+GPL-3.0.
+.SH SEE ALSO
+.BR mpv (1),
+.BR yt-dlp (1),
+.BR fzf (1)
