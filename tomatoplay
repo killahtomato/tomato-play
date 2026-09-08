@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.1.0"
+version_number="1.2.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -79,6 +79,9 @@ help_info() {
     Usage:
     %s [options] [query]
     %s [query] [options]
+
+      Run with no arguments for a home menu (search, continue, history,
+      trending, or surprise me :3).
 
     Options:
       -s, --source SOURCE
@@ -790,6 +793,20 @@ pick_lucky_show() {
     die "Everything on the vine's unripe today — try again later :3"
 }
 
+# Bare interactive `tp`: offer a menu instead of dropping straight into the
+# search prompt.
+home_menu() {
+    _home_choice="$(printf "search\tSearch for an anime\ncontinue\tContinue watching\nhistory\tView watch history\ntrending\tSee what's Hot on the Vine\nlucky\tLucky Tomato (surprise me!)\n" | menu "Tomato Play: " "" "$menu_extra_flags")"
+    case "$(printf "%s" "$_home_choice" | cut -f 1)" in
+        search) source="${TOMATOPLAY_DEFAULT_SOURCE:-all}" ;;
+        continue) source=history ;;
+        history) history_view; exit 0 ;;
+        trending) source=trending ;;
+        lucky) source=lucky ;;
+        *) exit 0 ;;
+    esac
+}
+
 # Drop search entries whose episode list is empty (they would only ever fail at
 # the episode selection step). In "all" mode entries are prefixed with
 # "provider:", so derive each entry's provider and id from that prefix.
@@ -1148,6 +1165,12 @@ case "$player_function" in
 esac
 
 trap 'cleanup; exit 1' INT HUP TERM
+
+# Bare interactive invocations get a home menu instead of the raw search prompt.
+if [ -t 0 ] && [ -t 1 ] && [ -z "$query" ] &&
+   ! printf "%s" "$source" | grep -qxE 'history|trending|lucky'; then
+    home_menu
+fi
 
 # ============================================================================
 # Main Logic

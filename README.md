@@ -4,6 +4,7 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 
 ## Features
 
+- Interactive home menu when you run `tp` with no arguments
 - Search and stream from multiple anime sources
 - Support for anime, movies, and TV series
 - Quality selection
@@ -63,6 +64,9 @@ Set `PREFIX` to install elsewhere (defaults to `/usr/local`):
 ## Usage
 
 ```bash
+# Home menu (search, continue, history, trending, surprise me :3)
+tp
+
 # Basic search
 tp "one piece"
 

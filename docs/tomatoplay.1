@@ -1,4 +1,4 @@
-.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.1.0" "User Commands"
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.2.0" "User Commands"
 .SH NAME
 tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
 .SH SYNOPSIS
@@ -11,7 +11,8 @@ tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple so
 .B tomatoplay
 is a CLI tool to search and stream anime, movies, and TV series from multiple
 sources. It provides interactive search via fzf/rofi/dmenu, quality selection,
-download support, and a watch history.
+download support, and a watch history. Run without arguments to get a home
+menu: search, continue watching, history, trending, and a surprise pick.
 .SH OPTIONS
 .TP
 .B -s, --source SOURCE
@@ -94,6 +95,9 @@ Menu program (fzf, rofi, dmenu).
 .B TOMATOPLAY_MODE
 Default audio track (sub, dub). Acts the same as passing \fB-a\fR.
 .SH EXAMPLES
+.TP
+Home menu (interactive)
+.B tp
 .TP
 Search all sources for naruto
 .B tp naruto
