@@ -794,17 +794,43 @@ pick_lucky_show() {
 }
 
 # Bare interactive `tp`: offer a menu instead of dropping straight into the
-# search prompt.
+# search prompt. Plain numbered list so the mascot banner stays visible above
+# it (a full-screen picker would cover it).
 home_menu() {
-    _home_choice="$(printf "search\tSearch for an anime\ncontinue\tContinue watching\nhistory\tView watch history\ntrending\tSee what's Hot on the Vine\nlucky\tLucky Tomato (surprise me!)\n" | menu "Tomato Play: " "" "$menu_extra_flags")"
-    case "$(printf "%s" "$_home_choice" | cut -f 1)" in
-        search) source="${TOMATOPLAY_DEFAULT_SOURCE:-all}" ;;
-        continue) source=history ;;
-        history) history_view; exit 0 ;;
-        trending) source=trending ;;
-        lucky) source=lucky ;;
-        *) exit 0 ;;
-    esac
+    while :; do
+        printf "\n    \033[1;32mWhat'll it be? :3\033[0m\n"
+        printf "      1) Search for an anime\n"
+        printf "      2) Continue watching\n"
+        printf "      3) View watch history\n"
+        printf "      4) See what's Hot on the Vine\n"
+        printf "      5) Lucky Tomato (surprise me!)\n"
+        printf "      q) Quit\n"
+        printf "\n    Choice [1-5/q]: "
+        read -r _home_choice
+        case "$_home_choice" in
+            1|s|search)
+                source="${TOMATOPLAY_DEFAULT_SOURCE:-all}"
+                break ;;
+            2|c|continue)
+                source=history
+                break ;;
+            3|h|history)
+                history_view
+                exit 0
+                ;;
+            4|t|trending)
+                source=trending
+                break ;;
+            5|l|lucky)
+                source=lucky
+                break ;;
+            q|Q|e|quit|exit)
+                exit 0
+                ;;
+            *)
+                printf "\033[1;31m    Not a valid pick, try again :3\033[0m\n" ;;
+        esac
+    done
 }
 
 # Drop search entries whose episode list is empty (they would only ever fail at
@@ -1150,7 +1176,18 @@ done
 # Dependency Check
 # ============================================================================
 
-[ -t 1 ] && banner
+trap 'cleanup; exit 1' INT HUP TERM
+
+# Bare interactive invocations get a home menu instead of the raw search
+# prompt, with the mascot banner and tagline shown right above it.
+if [ -t 0 ] && [ -t 1 ] && [ -z "$query" ] &&
+   ! printf "%s" "$source" | grep -qxE 'history|trending|lucky'; then
+    banner
+    home_menu
+else
+    [ -t 1 ] && banner
+fi
+
 info "Checking dependencies, one sec :3"
 dep_ch "sed"
 dep_ch "grep"
@@ -1163,14 +1200,6 @@ case "$player_function" in
     *flatpak*mpv*) dep_ch "flatpak" ;;
     *) dep_ch "$player_function" ;;
 esac
-
-trap 'cleanup; exit 1' INT HUP TERM
-
-# Bare interactive invocations get a home menu instead of the raw search prompt.
-if [ -t 0 ] && [ -t 1 ] && [ -z "$query" ] &&
-   ! printf "%s" "$source" | grep -qxE 'history|trending|lucky'; then
-    home_menu
-fi
 
 # ============================================================================
 # Main Logic

@@ -7,9 +7,10 @@ All notable changes to Tomato Play. Format based on
 
 ### Added
 
-- Interactive home menu when running bare `tp` in a terminal: search,
-  continue, watch history, trending, or a "Lucky Tomato" surprise pick
-  (replaces the raw search prompt for argument-less invocations).
+- Interactive home menu when running bare `tp` in a terminal: the mascot
+  banner and tagline are shown with a numbered menu (search, continue, watch
+  history, trending, or a "Lucky Tomato" surprise pick) below them, replacing
+  the raw search prompt for argument-less invocations.
 
 - `-T, --trending`: browse what's currently popular on aniwatch's home page
   without typing a search.
