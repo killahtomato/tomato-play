@@ -10,6 +10,8 @@ All notable changes to Tomato Play. Format based on
 - `-H, --history` flag to print the watch history (series and last-watched
   episode). Sits alongside the existing `-c/--continue` and `-D/--delete`
   history controls.
+- Tomato mascot ASCII-art banner shown at startup and in `--help`, plus
+  friendlier copy across prompts, status and error messages.
 
 ## [1.0.0] - 2026-09-08
 
