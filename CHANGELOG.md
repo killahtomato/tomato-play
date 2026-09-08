@@ -3,6 +3,14 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+- `-H, --history` flag to print the watch history (series and last-watched
+  episode). Sits alongside the existing `-c/--continue` and `-D/--delete`
+  history controls.
+
 ## [1.0.0] - 2026-09-08
 
 ### Added

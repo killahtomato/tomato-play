@@ -65,6 +65,8 @@ help_info() {
         Download the video instead of playing it
       -D, --delete
         Delete history
+      -H, --history
+        View the watch history
       -l, --logview
         Show logs
       -q, --quality
@@ -683,6 +685,14 @@ update_history() {
     mv "${histfile}.new" "$histfile"
 }
 
+history_view() {
+    if [ ! -f "$histfile" ] || [ ! -s "$histfile" ]; then
+        info "No watch history yet."
+        return 0
+    fi
+    awk -F '\t' '{ n++; printf "%d. %s (episode %s)\n", n, $3, $1 }' "$histfile"
+}
+
 # ============================================================================
 # Playback Functions
 # ============================================================================
@@ -839,6 +849,10 @@ while [ $# -gt 0 ]; do
             ;;
         -D | --delete)
             : >"$histfile"
+            exit 0
+            ;;
+        -H | --history)
+            history_view
             exit 0
             ;;
         -l | --logview)

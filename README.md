@@ -104,6 +104,7 @@ tp -h
 -c, --continue         Continue watching from history
 -d, --download         Download the video instead of playing it
 -D, --delete           Delete history
+-H, --history          View the watch history
 -q, --quality          Specify the video quality
 -v, --vlc              Use VLC to play the video
 -V, --version          Show the version
