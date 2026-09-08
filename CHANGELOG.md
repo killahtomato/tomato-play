@@ -12,6 +12,11 @@ All notable changes to Tomato Play. Format based on
   history controls.
 - Tomato mascot ASCII-art banner shown at startup and in `--help`, plus
   friendlier copy across prompts, status and error messages.
+- Fuzzy search: queries are retried with progressively looser variants
+  (symbols stripped, filler words removed, trailing words dropped, per-word and
+  4-char prefix fallbacks), then every provider result is ranked by closeness
+  to the query so the best match lands on top. Typos and extra words now still
+  find the show.
 
 ## [1.0.0] - 2026-09-08
 

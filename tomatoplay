@@ -578,6 +578,95 @@ provider_search() {
     esac
 }
 
+# Generate progressively looser search queries (best first) so a typo or extra
+# words in the user's input can still find the right show.
+search_relax() {
+    _sq="$1"
+    printf "%s\n" "$_sq"
+    _snorm="$(printf "%s" "$_sq" | sed 's|[^A-Za-z0-9 ]| |g; s|[[:space:]][[:space:]]*| |g; s|^ ||; s| $||')"
+    [ -n "$_snorm" ] && [ "$_snorm" != "$_sq" ] && printf "%s\n" "$_snorm"
+    _sstop="$(printf "%s" "$_snorm" | awk '{ for (i = 1; i <= NF; i++) { w = $i; if (w !~ /^(the|a|an|of|to|and|movie|movies|full|sub|dub|season|part|ep|episode|show|series)$/) { if (l) printf " "; printf "%s", w; l = 1 } } }')"
+    [ -n "$_sstop" ] && [ "$_sstop" != "$_snorm" ] && printf "%s\n" "$_sstop"
+    _sdw="$(printf "%s" "$_sstop" | sed -E 's|[[:space:]][^[:space:]]*$||')"
+    [ -n "$_sdw" ] && [ "$_sdw" != "$_sstop" ] && printf "%s\n" "$_sdw"
+    _sfw="$(printf "%s" "$_sstop" | sed -E 's|[[:space:]].*$||')"
+    [ -n "$_sfw" ] && [ "$_sfw" != "$_sstop" ] && printf "%s\n" "$_sfw"
+    for _fword in $_sstop; do
+        case "${#_fword}" in
+            0|1|2|3|4) continue ;;
+        esac
+        printf "%s\n" "$_fword"
+        printf "%s\n" "$(printf "%s" "$_fword" | cut -c1-4)"
+    done
+}
+
+# Order a provider's search results so the title closest to the user's query
+# floats to the top (word overlap + exact phrase + shared prefix, minus a length
+# penalty for tacked-on extras like "Season 3" or "Dub").
+fuzzy_rank() {
+    awk -v query="$1" '
+        function norm(s) {
+            gsub(/[^A-Za-z0-9 ]/, " ", s)
+            gsub(/[ ]+/, " ", s)
+            return tolower(s)
+        }
+        BEGIN { q = norm(query); nq = split(q, qw, " ") }
+        {
+            title = $0
+            sub(/^[^\t]*\t/, "", title)
+            t = norm(title)
+            score = 0
+            nt = split(t, tw, " ")
+            for (i = 1; i <= nq; i++) {
+                if (qw[i] == "") continue
+                best = 0
+                for (j = 1; j <= nt; j++) {
+                    if (tw[j] == qw[i]) {
+                        best = 6 + length(qw[i])
+                    } else if (length(qw[i]) >= 3 && length(tw[j]) >= 3) {
+                        if (substr(tw[j], 1, length(qw[i])) == qw[i]) v = 3 + length(qw[i])
+                        else if (substr(qw[i], 1, length(tw[j])) == tw[j]) v = 3 + length(tw[j])
+                        else v = 0
+                        if (v > best) best = v
+                    }
+                }
+                score += best
+            }
+            if (index(t, q)) score += 6
+            cl = (length(q) < length(t)) ? length(q) : length(t)
+            for (p = 1; p <= cl && substr(q, p, 1) == substr(t, p, 1); p++) score += 1
+            dl = length(t) - length(q); if (dl < 0) dl = -dl
+            if (dl > 8) dl = 8
+            printf "%d\t%s\n", score - dl, $0
+        }
+    '
+}
+
+# Fuzzier search: try successively looser queries, merge unique results, and
+# rank by closeness so the best match lands on top.
+fuzzy_search() {
+    _fs_src="$1"
+    _fs_query="$2"
+    _fs_tried=""
+    _fs_found=""
+    _fs_cands="$(mktemp)" || return 1
+    search_relax "$_fs_query" >"$_fs_cands"
+    while IFS= read -r _fs_cand <&3; do
+        [ -n "$_fs_cand" ] || continue
+        if printf "%s\n" "$_fs_tried" | grep -qxF "$_fs_cand"; then continue; fi
+        _fs_tried="$(printf "%s\n%s" "$_fs_tried" "$_fs_cand")"
+        _fs_r="$(provider_search "$_fs_src" "$_fs_cand" 2>/dev/null)"
+        if [ -n "$_fs_r" ]; then
+            _fs_found="$(printf "%s\n%s" "$_fs_found" "$_fs_r" | grep -v '^$')"
+            break
+        fi
+    done 3<"$_fs_cands"
+    rm -f "$_fs_cands"
+    [ -z "$_fs_found" ] && return 0
+    printf "%s\n" "$_fs_found" | grep -v '^$' | sort -u | fuzzy_rank "$_fs_query" |
+        sort -t "$(printf '\t')" -k1,1 -nr | cut -f 2- | grep -v '^$' | head -n 10
+}
+
 provider_episodes() {
     case "$1" in
         anidb) anidb_episodes "$2" ;;
@@ -965,14 +1054,14 @@ case "$source" in
             [ -z "$query" ] && exit 1
         fi
 
-        query=$(printf "%s" "$query" | sed 's| |+|g')
+        query=$(printf "%s" "$query" | tr -s ' ')
 
-        anime_list=$(provider_search "$source" "$query") || exit 1
-        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe? :/"
+        anime_list=$(fuzzy_search "$source" "$query") || exit 1
+        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe? :3"
         # Only offer series that actually have an episode list (anything else
         # would fail later with an invalid episode selection).
         anime_list=$(printf "%s\n" "$anime_list" | filter_entries)
-        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe? :/"
+        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe? :3"
         [ "$index" -eq "$index" ] 2>/dev/null && result=$(printf "%s" "$anime_list" | sed -n "${index}p")
         [ -z "$index" ] && result=$(printf "%s" "$anime_list" | nl -w 2 | sed 's/^[[:space:]]//' | nth "Pick a title: ")
         [ -z "$result" ] && die "That pick didn't work out — try again!"
