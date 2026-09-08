@@ -70,7 +70,7 @@ banner() {
                 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 EOF
     printf "\033[1;32m    Tomato Play\033[0m\n"
-    printf "\033[2m    watch anime & movies, right from your terminal :3\033[0m\n"
+    printf "\033[2m    Watch anime & movies, right from your terminal :3\033[0m\n"
 }
 
 help_info() {
@@ -683,9 +683,9 @@ select_quality() {
 get_video_link() {
     links=$(provider_m3u8 "$source" "$anime_id" "$ep_no" "$mode" | sort -g -r -s)
     [ -z "$links" ] && die "No streams available for that one right now :("
-    info "Streams found on $source :3"
+    info "We found some streams on $source :3"
     select_quality "$quality"
-    [ -z "$video_link" ] && die "Couldn't grab a stream link, sorry!"
+    [ -z "$video_link" ] && die "Couldn't grab a stream link, sorry! :/"
 }
 
 # ============================================================================
@@ -711,7 +711,7 @@ update_history() {
 
 history_view() {
     if [ ! -f "$histfile" ] || [ ! -s "$histfile" ]; then
-        info "Nothing here yet :3 Go watch something and it'll show up!"
+        info "Nothing here yet :\ Go watch something and it'll show up! :3"
         return 0
     fi
     awk -F '\t' '{ n++; printf "%d. %s (episode %s)\n", n, $3, $1 }' "$histfile"
@@ -781,7 +781,7 @@ play() {
         for i in $_range; do
             tput clear
             ep_no=$i
-            info "Booting up episode $ep_no :3"
+            info "Booting up episode $ep_no — enjoy your show! :3"
             [ "$i" = "$_end" ] && unset _range
             play_episode
         done
@@ -946,7 +946,7 @@ case "$source" in
     history)
         anime_list=$(while read -r ep_no anime_id anime_title; do process_hist_entry & done <"$histfile")
         wait
-        [ -z "$anime_list" ] && die "You're all caught up! Nothing unwatched in your history :3"
+        [ -z "$anime_list" ] && die "You're all caught up! Nothing unwatched in your history, time to pick another show?"
         [ -z "$anime_id" ] && anime_id=$(printf "%s" "$anime_list" | nl -w 2 | sed 's/^[[:space:]]//' | nth "Pick a series: " | cut -f 1)
         [ -z "${index##*[!0-9]*}" ] || anime_id=$(printf "%s" "$anime_list" | sed -n "${index}p" | cut -f 1)
         [ -z "$anime_id" ] && exit 1
@@ -968,11 +968,11 @@ case "$source" in
         query=$(printf "%s" "$query" | sed 's| |+|g')
 
         anime_list=$(provider_search "$source" "$query") || exit 1
-        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling? :3"
+        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe? :/"
         # Only offer series that actually have an episode list (anything else
         # would fail later with an invalid episode selection).
         anime_list=$(printf "%s\n" "$anime_list" | filter_entries)
-        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling? :3"
+        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe? :/"
         [ "$index" -eq "$index" ] 2>/dev/null && result=$(printf "%s" "$anime_list" | sed -n "${index}p")
         [ -z "$index" ] && result=$(printf "%s" "$anime_list" | nl -w 2 | sed 's/^[[:space:]]//' | nth "Pick a title: ")
         [ -z "$result" ] && die "That pick didn't work out — try again!"
@@ -1019,7 +1019,7 @@ tput sc
 play
 [ "$player_function" = "download" ] || [ "$player_function" = "debug" ] && exit 0
 
-while cmd=$(printf "next\nreplay\nprevious\nselect\nchange_audio\nchange_quality\nquit" | nth "Now on episode $ep_no of $anime_title :3 ... "); do
+while cmd=$(printf "next\nreplay\nprevious\nselect\nchange_audio\nchange_quality\nquit" | nth "Now showing episode $ep_no of $anime_title — enjoy! :3 ... "); do
     case "$cmd" in
         next) ep_no=$(printf "%s" "$ep_list" | sed -n "/^${ep_no}$/{n;p;}") 2>/dev/null ;;
         replay) video_link="$replay" ;;
