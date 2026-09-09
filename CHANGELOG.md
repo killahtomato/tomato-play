@@ -5,6 +5,15 @@ All notable changes to Tomato Play. Format based on
 
 ## [Unreleased]
 
+### Fixed
+
+- `--rofi`/`--dmenu`: the no-query "Search:" step no longer opens an empty
+  picker that hangs — the query is now read from the terminal regardless of
+  menu program.
+- Headless non-tty runs no longer override an explicit
+  `--rofi`/`--dmenu`/`TOMATOPLAY_MENU` choice with the auto-detected GUI
+  picker.
+
 ### Added
 
 - `--stats`: watch stats harvested from history — series in the garden,

@@ -1171,11 +1171,8 @@ exit_after_play="${TOMATOPLAY_EXIT_AFTER_PLAY:-0}"
 menu_program="${TOMATOPLAY_MENU:-fzf}"
 menu_extra_flags="${TOMATOPLAY_MENU_FLAGS:-""}"
 branch="${TOMATOPLAY_BRANCH:-main}"
-
-if [ ! -t 0 ]; then
-    command -v dmenu >/dev/null && menu_program=dmenu
-    command -v rofi >/dev/null && menu_program=rofi
-fi
+_menu_explicit=0
+[ -n "$TOMATOPLAY_MENU" ] && _menu_explicit=1
 
 hist_dir="${TOMATOPLAY_HIST_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/tomato-play}"
 [ ! -d "$hist_dir" ] && mkdir -p "$hist_dir"
@@ -1257,8 +1254,8 @@ while [ $# -gt 0 ]; do
         --dub) mode="dub"; mode_set=1 ;;
         --no-detach) no_detach=1 ;;
         --exit-after-play) exit_after_play=1 && no_detach=1 ;;
-        --rofi) menu_program=rofi ;;
-        --dmenu) menu_program=dmenu ;;
+        --rofi) menu_program=rofi; _menu_explicit=1 ;;
+        --dmenu) menu_program=dmenu; _menu_explicit=1 ;;
         -U | --update)
             dep_ch "patch"
             branch="${2:-$branch}"
@@ -1268,6 +1265,13 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# Headless runs (non-tty) fall back to a GUI picker so menus still work while
+# piping, but never override an explicit --rofi/--dmenu/TOMATOPLAY_MENU choice.
+if [ ! -t 0 ] && [ "$_menu_explicit" != 1 ]; then
+    command -v dmenu >/dev/null && menu_program=dmenu
+    command -v rofi >/dev/null && menu_program=rofi
+fi
 
 [ "$menu_program" = "fzf" ] && menu_multi_flag="-m"
 [ "$menu_program" = "rofi" ] && menu_multi_flag="-multi-select"
@@ -1341,14 +1345,9 @@ case "$source" in
         pick_lucky_show
         ;;
     *)
-        if [ "$menu_program" = "fzf" ]; then
-            while [ -z "$query" ]; do
-                printf "\33[2K\r\033[1;36mSearch: \033[0m" && read -r query
-            done
-        else
-            [ -z "$query" ] && query=$(: | menu "Search: " "" "$menu_extra_flags")
-            [ -z "$query" ] && exit 1
-        fi
+        while [ -z "$query" ]; do
+            printf "\33[2K\r\033[1;36mSearch: \033[0m" && read -r query || exit 1
+        done
 
         query=$(printf "%s" "$query" | tr -s ' ')
 
