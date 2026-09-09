@@ -9,6 +9,8 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 - `tp --sources`: health check for which sources work right now
 - Rotating tomato taglines under the banner :3
 - `tp -n`: marathon mode — keeps rolling into the next episode
+- `tp -c` resumes where you left off mid-episode (mpv), rewinding
+  `resume_back` seconds (default 10)
 - `tp --preview`: peek at the first seconds of an episode (mpv)
 - Config file at `~/.config/tomato-play/tomato-playrc`
 - Shell completions for bash, zsh, and fish
@@ -98,6 +100,8 @@ tp --vlc "anime name"
 
 # Continue watching
 tp -c
+# (resumes where you left off — set resume_back / TOMATOPLAY_RESUME_BACK for
+#  how many seconds to rewind, default 10)
 
 # Marathon mode (auto-next episode)
 tp -n "one piece"
@@ -171,6 +175,7 @@ Environment variables:
 - `TOMATOPLAY_MENU` - Menu program (fzf, rofi, dmenu)
 - `TOMATOPLAY_MODE` - Default audio track (sub, dub)
 - `TOMATOPLAY_PREVIEW_SECS` - Preview length in seconds for `--preview` (default: 60)
+- `TOMATOPLAY_RESUME_BACK` - Seconds rewound when resuming a partial episode (default: 10)
 - `TOMATOPLAY_CONFIG` - Config file path (default: `~/.config/tomato-play/tomato-playrc`)
 - `TOMATOPLAY_CACHE_DIR` - Override the response-cache directory (default: `~/.cache/tomato-play`)
 - `TOMATOPLAY_CACHE_TTL` - Days before the whole cache is wiped (default: 7)

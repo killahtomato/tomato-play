@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.5.0"
+version_number="1.6.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -123,7 +123,7 @@ help_info() {
       -s, --source SOURCE
         Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube)
       -c, --continue
-        Continue watching from history
+        Continue watching from history, resuming where you left off (mpv)
       -T, --trending
         Browse what's popular on the vine right now
       -L, --lucky-tomato
@@ -193,6 +193,10 @@ help_info() {
       %s -s gogoanime -e 2 cyberpunk edgerunners
       %s -d -e 2 cyberpunk edgerunners
       %s blue lock -e 5-6
+
+    Playing with mpv saves your position per episode — next time you play it,
+    it picks up a few seconds back. The rewind is "resume_back" in the config
+    file, or TOMATOPLAY_RESUME_BACK (default 10 seconds).
     \n" "${0##*/}" "${0##*/}" "${0##*/}" "${0##*/}" "${0##*/}" "${0##*/}"
     exit 0
 }
@@ -999,6 +1003,13 @@ get_video_link() {
 
 process_hist_entry() {
     source=aniwatch
+    # If that episode has a saved position, keep it so playback resumes
+    # exactly where the user left off instead of jumping to the next one.
+    _rkey=$(printf "%s-%s" "$anime_id" "$ep_no" | tr -c '[:alnum:]' '_')
+    if [ -d "$resume_dir/$_rkey" ] && [ -n "$(find "$resume_dir/$_rkey" -type f 2>/dev/null)" ]; then
+        printf "%s\t%s - episode %s\n" "$anime_id" "$anime_title" "$ep_no"
+        return
+    fi
     ep_list=$(provider_episodes "$source" "$anime_id" | cut -f 2)
     ep_no=$(printf "%s" "$ep_list" | sed -n "/^${ep_no}$/{n;p;}") 2>/dev/null
     [ -n "$ep_no" ] && printf "%s\t%s - episode %s\n" "$anime_id" "$anime_title" "$ep_no"
@@ -1095,19 +1106,47 @@ play_episode() {
     case "$video_link" in
         *[mM]3[uU]8*) _hls_flags="--demuxer=lavf --demuxer-lavf-format=hls" ;;
     esac
+
+    # Per-episode resume: mpv saves its position to a watch-later file when the
+    # user quits; next time the episode plays we rewind resume_back (default
+    # 10s) and pick up there. Skip previews, non-mpv players, and android.
+    _wl_flags=""
+    case "$player_function" in
+        android_mpv | android_vlc | debug | download | *iina* | *vlc*) ;;
+        *mpv*)
+            _wl_key=$(printf "%s-%s" "$anime_id" "$ep_no" | tr -c '[:alnum:]' '_')
+            _wl_dir="$resume_dir/$_wl_key"
+            mkdir -p "$_wl_dir" 2>/dev/null
+            for _wl in "$_wl_dir"/*; do
+                [ -f "$_wl" ] || continue
+                _saved=$(grep -m1 -Eo '^(start|pts)=[0-9.]+' "$_wl" 2>/dev/null | cut -d= -f2)
+                [ -z "$_saved" ] && _saved=$(grep -m1 -Eo '"(start|pts)": ?[0-9.]+' "$_wl" 2>/dev/null | grep -Eo '[0-9.]+$')
+                [ -n "$_saved" ] && break
+            done
+            _wl_flags="--save-position-on-quit=yes --resume-playback=no --watch-later-directory=$_wl_dir"
+            if [ -n "$_saved" ] && [ "$preview" != 1 ]; then
+                _resume_pos=$(awk -v val="$_saved" -v back="${resume_back:-10}" 'BEGIN{x=val-back; if (x<0) x=0; printf "%.0f", x}')
+                if printf "%s" "$_resume_pos" | grep -qE '^[1-9][0-9]*$'; then
+                    _wl_flags="$_wl_flags --start=$_resume_pos"
+                    info "Resuming where you left off — rewinding ${resume_back}s."
+                fi
+            fi
+            ;;
+    esac
+
     case "$player_function" in
         debug) printf "All links:\n%s\nSelected link:\n%s\n" "$links" "$video_link" ;;
         android_mpv) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n is.xyz.mpv/.MPVActivity -e "title" "${anime_title} Episode ${ep_no}" $player_extra_flags >/dev/null 2>&1 & ;;
         android_vlc) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "${anime_title} Episode ${ep_no}" $player_extra_flags >/dev/null 2>&1 & ;;
-        *flatpak*mpv*) flatpak run io.mpv.Mpv $player_extra_flags $_hls_flags --force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 & ;;
+        *flatpak*mpv*) flatpak run io.mpv.Mpv $player_extra_flags $_hls_flags $_wl_flags --force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 & ;;
         *mpv*)
             _peek=""
             [ "$preview" = 1 ] && _peek="--length=$preview_len"
             if [ "$no_detach" = 0 ]; then
-                nohup $player_function $player_extra_flags $_hls_flags $_peek --force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 &
+                nohup $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 &
             else
                 [ "$preview" = 1 ] && info "Peeking for ${preview_len}s — mpv will close itself."
-                $player_function $player_extra_flags $_hls_flags $_peek --force-media-title="${anime_title} Episode ${ep_no}" "$video_link"
+                $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="${anime_title} Episode ${ep_no}" "$video_link"
                 mpv_exitcode=$?
                 [ "$exit_after_play" = 1 ] && [ -z "$_range" ] && exit "$mpv_exitcode"
             fi
@@ -1194,6 +1233,7 @@ if [ -f "$config_file" ] && [ -r "$config_file" ]; then
             download_dir) [ -z "${TOMATOPLAY_DOWNLOAD_DIR:-}" ] && TOMATOPLAY_DOWNLOAD_DIR="$_cf_val" ;;
             log) [ -z "${TOMATOPLAY_LOG:-}" ] && TOMATOPLAY_LOG="$_cf_val" ;;
             cache_ttl) [ -z "${TOMATOPLAY_CACHE_TTL:-}" ] && TOMATOPLAY_CACHE_TTL="$_cf_val" ;;
+            resume_back) [ -z "${TOMATOPLAY_RESUME_BACK:-}" ] && TOMATOPLAY_RESUME_BACK="$_cf_val" ;;
         esac
     done <"$config_file"
 else
@@ -1211,6 +1251,7 @@ else
 # download_dir=.
 # log=1        # 1 to log episodes to the system journal
 # cache_ttl=7  # wipe the cache once older than this many days
+# resume_back=10 # resume mid-episode, replaying this many seconds back
 EOF
 fi
 
@@ -1238,6 +1279,7 @@ player_extra_flags="${TOMATOPLAY_PLAYER_FLAGS:-""}"
 no_detach="${TOMATOPLAY_NO_DETACH:-0}"
 exit_after_play="${TOMATOPLAY_EXIT_AFTER_PLAY:-0}"
 preview_len="${TOMATOPLAY_PREVIEW_SECS:-60}"
+resume_back="${TOMATOPLAY_RESUME_BACK:-10}"
 menu_program="${TOMATOPLAY_MENU:-fzf}"
 menu_extra_flags="${TOMATOPLAY_MENU_FLAGS:-""}"
 branch="${TOMATOPLAY_BRANCH:-main}"
@@ -1245,6 +1287,7 @@ _menu_explicit=0
 [ -n "$TOMATOPLAY_MENU" ] && _menu_explicit=1
 
 hist_dir="${TOMATOPLAY_HIST_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/tomato-play}"
+resume_dir="$hist_dir/resume"
 [ ! -d "$hist_dir" ] && mkdir -p "$hist_dir"
 histfile="$hist_dir/tp-hsts"
 [ ! -f "$histfile" ] && : >"$histfile"
@@ -1291,6 +1334,7 @@ while [ $# -gt 0 ]; do
             ;;
         -D | --delete)
             : >"$histfile"
+            rm -rf -- "$resume_dir"
             exit 0
             ;;
         -H | --history)

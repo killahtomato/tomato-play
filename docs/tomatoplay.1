@@ -1,4 +1,4 @@
-.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.5.0" "User Commands"
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.6.0" "User Commands"
 .SH NAME
 tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
 .SH SYNOPSIS
@@ -19,7 +19,7 @@ menu: search, continue watching, history, trending, and a surprise pick.
 Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube.
 .TP
 .B -c, --continue
-Continue watching from history.
+Continue watching from history, resuming where you left off (mpv).
 .TP
 .B -T, --trending
 Browse what's popular right now, without typing a search.
@@ -126,6 +126,9 @@ Preview length in seconds for \fB--preview\fR (default: 60).
 .TP
 .B TOMATOPLAY_CONFIG
 Path to the config file (default: \fI~/.config/tomato-play/tomato-playrc\fR).
+.TP
+.B TOMATOPLAY_RESUME_BACK
+Seconds rewound when resuming a partially-watched episode (default: 10).
 .SH EXAMPLES
 .TP
 Home menu (interactive)
@@ -151,8 +154,8 @@ Watch history.
 .TP
 .B ~/.config/tomato-play/tomato-playrc
 Optional KEY=VALUE config file for defaults (mode, quality, player, menu,
-source, download_dir, log, cache_ttl). Precedence is CLI flags > environment >
-config file. A commented starter is created on first run.
+source, download_dir, log, cache_ttl, resume_back). Precedence is CLI flags >
+environment > config file. A commented starter is created on first run.
 .SH LICENSE
 GPL-3.0.
 .SH SEE ALSO

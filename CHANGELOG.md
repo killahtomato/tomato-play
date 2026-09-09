@@ -3,6 +3,24 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.0] - 2026-09-09
+
+### Added
+
+- Per-episode resume with mpv: your position is saved when you quit mid-way,
+  and the next play of that episode picks up `resume_back` seconds (default 10)
+  earlier. Configurable via the `resume_back` config key or
+  `TOMATOPLAY_RESUME_BACK`. `-c`/`--continue` resumes right where you left
+  off. Position data lives under the history state dir and is cleared by
+  `-D`.
+
+### Fixed
+
+- `-c`/`--continue` jumped straight to the *next* episode, discarding any
+  saved position. It now keeps the current episode when a saved position
+  exists (so playback truly resumes where you left off), and only advances
+  once that episode has been watched to the end.
+
 ## [1.5.0] - 2026-09-09
 
 ### Added
