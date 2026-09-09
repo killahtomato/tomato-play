@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.4.0"
+version_number="1.5.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -167,7 +167,8 @@ help_info() {
         all the way to the finale
       --preview
         Peek at the first TOMATOPLAY_PREVIEW_SECS seconds (default 60) of an
-        episode before committing (mpv only)
+        episode before committing (mpv only). Also offered interactively after
+        picking an episode.
       --cache-info
         Show where the cache lives, how many entries it has, and its size
       --clear-cache
@@ -1468,6 +1469,18 @@ if [ "$source" = "aniwatch" ] && [ "$mode_set" = "0" ] && [ -t 1 ]; then
             mode_set=1
         fi
     fi
+fi
+
+# After the episode (and audio) are picked, let mpv users poke at the first
+# few seconds before committing. Esc to skip the peek and dive straight in.
+if [ "$preview" != 1 ] && [ -t 0 ] && [ -t 1 ] &&
+   printf "%s" "$ep_no" | grep -qE '^[0-9]+$' &&
+   printf "%s" "$player_function" | grep -q '[mM]pv'; then
+    _peek_choice=$(printf "%b" "preview\\tPeek at the first ${preview_len}s\\ncontinue\\tDive straight in" | menu "Episode $ep_no of $anime_title — " "" "$menu_extra_flags")
+    case "$_peek_choice" in
+        *preview*) preview=1 ;;
+        *) : ;;
+    esac
 fi
 
 tput cuu1 && tput el

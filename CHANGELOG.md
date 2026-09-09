@@ -3,6 +3,14 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.0] - 2026-09-09
+
+### Added
+
+- After picking an episode (and audio), mpv users are offered a preview
+  choice: peek at the first `TOMATOPLAY_PREVIEW_SECS` seconds, or dive
+  straight in. Esc skips the peek.
+
 ## [1.4.0] - 2026-09-09
 
 ### Added

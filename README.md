@@ -139,7 +139,8 @@ tp -h
 -a, --audio            Choose the audio track (sub or dub). Defaults to subtitled
 --dub                  Play the English dubbed version
 -n, --next             Marathon mode: auto-play the next episode to the end
---preview              Peek at the first TOMATOPLAY_PREVIEW_SECS (default 60s)
+--preview              Peek at the first TOMATOPLAY_PREVIEW_SECS (default 60s);
+                       also offered interactively after picking an episode
 --cache-info           Show cache size and entries
 --clear-cache          Wipe the cache
 --no-cache             Disable the cache for this run
