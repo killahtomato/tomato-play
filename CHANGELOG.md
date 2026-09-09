@@ -3,7 +3,21 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.4.0] - 2026-09-09
+
+### Added
+
+- `~/.config/tomato-play/tomato-playrc`: optional KEY=VALUE config file for
+  defaults (mode, quality, player, menu, source, download_dir, log,
+  cache_ttl). Precedence is CLI flags > environment > config file; a commented
+  starter is planted on first run.
+- `-n, --next`: marathon mode — after a show ends, automatically start the next
+  episode, rolling on to the finale.
+- `--preview`: peek at the first `TOMATOPLAY_PREVIEW_SECS` seconds (default 60)
+  of an episode before committing (mpv only).
+- `--cache-info`, `--clear-cache`, `--no-cache`: inspect the cache's size and
+  entries, wipe it clean, or disable it for a run.
+- Shell completions for bash, zsh, and fish, installed alongside the script.
 
 ### Fixed
 

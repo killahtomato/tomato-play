@@ -1,0 +1,38 @@
+#compdef tp tomatoplay
+# zsh completion for tomato-play
+# Install to fpath (e.g. ~/.local/share/zsh/site-functions/_tp) and run
+# `compinit` with the directory on your fpath.
+
+_tomato_play() {
+    _arguments \
+        '(-s --source)'{-s,--source}'[specify source]:source:(all anidb aniwatch gogoanime 9anime animeplanet anisearch youtube)' \
+        '(-a --audio)'{-a,--audio}'[audio track]:audio:(sub dub)' \
+        '(-c --continue)'{-c,--continue}'[continue watching from history]' \
+        '(-T --trending)'{-T,--trending}'[browse what is popular]' \
+        '(-L --lucky-tomato)'{-L,--lucky-tomato}'[pluck a random playable show]' \
+        '(-d --download)'{-d,--download}'[download instead of playing]' \
+        '(-D --delete)'{-D,--delete}'[delete history]' \
+        '(-H --history)'{-H,--history}'[view watch history]' \
+        '--stats[show watch stats]' \
+        '--sources[probe each source]' \
+        '(-l --logview)'{-l,--logview}'[show logs]' \
+        '(-q --quality)'{-q,--quality}'[video quality]:quality' \
+        '(-v --vlc)'{-v,--vlc}'[use VLC]' \
+        '(-V --version)'{-V,--version}'[show version]' \
+        '(-h --help)'{-h,--help}'[show help]' \
+        '(-e --episode -r --range)'{-e,--episode,-r,--range}'[episode number or range]:episode' \
+        '--dub[play the English dub]' \
+        '--rofi[use rofi menus]' \
+        '--dmenu[use dmenu menus]' \
+        '--no-detach[stay in the terminal]' \
+        '--exit-after-play[exit and return the player exit code]' \
+        '(-n --next)'{-n,--next}'[marathon: auto-play the next episode]' \
+        '--preview[peek at the first seconds of an episode]' \
+        '--cache-info[show cache size and entries]' \
+        '--clear-cache[wipe the cache]' \
+        '--no-cache[disable the cache]' \
+        '(-U --update)'{-U,--update}'[update the script]' \
+        '*:query:'
+}
+
+_tomato_play "$@"

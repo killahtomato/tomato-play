@@ -1,4 +1,4 @@
-.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.3.0" "User Commands"
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.4.0" "User Commands"
 .SH NAME
 tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
 .SH SYNOPSIS
@@ -81,6 +81,23 @@ Don't detach the player (useful for in-terminal playback, mpv only).
 .B --exit-after-play
 Exit the player and return the player exit code.
 .TP
+.B -n, --next
+Marathon mode: after a show ends, automatically start the next episode and
+keep going to the finale (implies \fB--no-detach\fR).
+.TP
+.B --preview
+Peek at the first \fBTOMATOPLAY_PREVIEW_SECS\fR seconds (default 60) of an
+episode before committing to a show. mpv only; implies \fB--no-detach\fR.
+.TP
+.B --cache-info
+Show the cache directory, number of entries, and total size.
+.TP
+.B --clear-cache
+Wipe the cache and start fresh.
+.TP
+.B --no-cache
+Disable the cache for this run.
+.TP
 .B -U, --update
 Update the script.
 .SH ENVIRONMENT
@@ -102,6 +119,12 @@ Menu program (fzf, rofi, dmenu).
 .TP
 .B TOMATOPLAY_MODE
 Default audio track (sub, dub). Acts the same as passing \fB-a\fR.
+.TP
+.B TOMATOPLAY_PREVIEW_SECS
+Preview length in seconds for \fB--preview\fR (default: 60).
+.TP
+.B TOMATOPLAY_CONFIG
+Path to the config file (default: \fI~/.config/tomato-play/tomato-playrc\fR).
 .SH EXAMPLES
 .TP
 Home menu (interactive)
@@ -124,6 +147,11 @@ curl, grep, sed, mpv or vlc, yt-dlp or ffmpeg, fzf.
 .TP
 .B ~/.local/share/tomatoplay/history
 Watch history.
+.TP
+.B ~/.config/tomato-play/tomato-playrc
+Optional KEY=VALUE config file for defaults (mode, quality, player, menu,
+source, download_dir, log, cache_ttl). Precedence is CLI flags > environment >
+config file. A commented starter is created on first run.
 .SH LICENSE
 GPL-3.0.
 .SH SEE ALSO

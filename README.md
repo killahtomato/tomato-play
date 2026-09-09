@@ -8,6 +8,11 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 - `tp --stats`: watch stats (series, episodes, time, marathon champ)
 - `tp --sources`: health check for which sources work right now
 - Rotating tomato taglines under the banner :3
+- `tp -n`: marathon mode — keeps rolling into the next episode
+- `tp --preview`: peek at the first seconds of an episode (mpv)
+- Config file at `~/.config/tomato-play/tomato-playrc`
+- Shell completions for bash, zsh, and fish
+- Cache tools: `--cache-info`, `--clear-cache`, `--no-cache`
 - Search and stream from multiple anime sources
 - Support for anime, movies, and TV series
 - Quality selection
@@ -94,6 +99,16 @@ tp --vlc "anime name"
 # Continue watching
 tp -c
 
+# Marathon mode (auto-next episode)
+tp -n "one piece"
+
+# Peek at the first 60s of an episode (mpv)
+tp --preview "one piece"
+
+# Cache housekeeping
+tp --cache-info
+tp --clear-cache
+
 # Download
 tp -d "naruto" -e 1-10
 
@@ -123,6 +138,11 @@ tp -h
 -e, --episode          Specify episode number
 -a, --audio            Choose the audio track (sub or dub). Defaults to subtitled
 --dub                  Play the English dubbed version
+-n, --next             Marathon mode: auto-play the next episode to the end
+--preview              Peek at the first TOMATOPLAY_PREVIEW_SECS (default 60s)
+--cache-info           Show cache size and entries
+--clear-cache          Wipe the cache
+--no-cache             Disable the cache for this run
 --rofi                 Use rofi for menu
 --dmenu                Use dmenu for menu
 -U, --update           Update the script
@@ -135,6 +155,12 @@ to switch audio for the current episode.
 
 ## Configuration
 
+Defaults can live in a config file at `~/.config/tomato-play/tomato-playrc`
+(override the path with `TOMATOPLAY_CONFIG`). Keys are `mode`, `quality`,
+`player`, `menu`, `source`, `download_dir`, `log`, and `cache_ttl`. A commented
+starter is created on first run. Precedence is CLI flags > environment >
+config file.
+
 Environment variables:
 
 - `TOMATOPLAY_DEFAULT_SOURCE` - Default source (default: all)
@@ -143,6 +169,8 @@ Environment variables:
 - `TOMATOPLAY_DOWNLOAD_DIR` - Download directory
 - `TOMATOPLAY_MENU` - Menu program (fzf, rofi, dmenu)
 - `TOMATOPLAY_MODE` - Default audio track (sub, dub)
+- `TOMATOPLAY_PREVIEW_SECS` - Preview length in seconds for `--preview` (default: 60)
+- `TOMATOPLAY_CONFIG` - Config file path (default: `~/.config/tomato-play/tomato-playrc`)
 - `TOMATOPLAY_CACHE_DIR` - Override the response-cache directory (default: `~/.cache/tomato-play`)
 - `TOMATOPLAY_CACHE_TTL` - Days before the whole cache is wiped (default: 7)
 
