@@ -1,4 +1,4 @@
-.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.2.0" "User Commands"
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.3.0" "User Commands"
 .SH NAME
 tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
 .SH SYNOPSIS
@@ -35,6 +35,14 @@ Delete history.
 .TP
 .B -H, --history
 Print the watch history (episode per series).
+.TP
+.B --stats
+Show watch stats harvested from history: series count, episodes logged,
+approximate watch time, and the marathon champ.
+.TP
+.B --sources
+Probe each source end-to-end (search, episode list, stream) and report which
+ones are working right now. Results are cached.
 .TP
 .B -q, --quality
 Specify the video quality.

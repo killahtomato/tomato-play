@@ -7,6 +7,15 @@ All notable changes to Tomato Play. Format based on
 
 ### Added
 
+- `--stats`: watch stats harvested from history — series in the garden,
+  episodes logged, approximate watch time, and the marathon champ.
+- `--sources`: end-to-end health probe of each source (search, episode list,
+  playable stream). Results ride the normal cache so repeats are instant.
+- Rotating banner taglines — every run plucks a fresh one-liner off the vine.
+- CI: shellcheck lint job on push/PR (error severity) via GitHub Actions.
+- Fixed a help text bug where the last usage example was missing its program
+  prefix (6 format slots, 5 arguments).
+
 - Interactive home menu when running bare `tp` in a terminal: the mascot
   banner and tagline are shown with a numbered menu (search, continue, watch
   history, trending, or a "Lucky Tomato" surprise pick) below them, replacing

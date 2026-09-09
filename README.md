@@ -5,6 +5,9 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 ## Features
 
 - Interactive home menu when you run `tp` with no arguments
+- `tp --stats`: watch stats (series, episodes, time, marathon champ)
+- `tp --sources`: health check for which sources work right now
+- Rotating tomato taglines under the banner :3
 - Search and stream from multiple anime sources
 - Support for anime, movies, and TV series
 - Quality selection
@@ -111,6 +114,8 @@ tp -h
 -d, --download         Download the video instead of playing it
 -D, --delete           Delete history
 -H, --history          View the watch history
+--stats                Show your watch stats (series, episodes, time, champ)
+--sources              Probe which sources are working right now
 -q, --quality          Specify the video quality
 -v, --vlc              Use VLC to play the video
 -V, --version          Show the version
