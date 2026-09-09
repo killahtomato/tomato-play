@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.6.0"
+version_number="1.6.1"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -123,7 +123,7 @@ help_info() {
       -s, --source SOURCE
         Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube)
       -c, --continue
-        Continue watching from history, resuming where you left off (mpv)
+        Continue watching from history, resuming where you left off — no audio or preview prompts (mpv)
       -T, --trending
         Browse what's popular on the vine right now
       -L, --lucky-tomato
@@ -1107,6 +1107,12 @@ play_episode() {
         *[mM]3[uU]8*) _hls_flags="--demuxer=lavf --demuxer-lavf-format=hls" ;;
     esac
 
+    # Remember the audio track used for this show, so "continue" can reuse it
+    # without asking again.
+    mkdir -p "$resume_dir" 2>/dev/null
+    _mode_key=$(printf "mode_%s" "$anime_id" | tr -c '[:alnum:]' '_')
+    printf "%s\n" "$mode" >"$resume_dir/$_mode_key" 2>/dev/null
+
     # Per-episode resume: mpv saves its position to a watch-later file when the
     # user quits; next time the episode plays we rewind resume_back (default
     # 10s) and pick up there. Skip previews, non-mpv players, and android.
@@ -1301,6 +1307,7 @@ cache_init
 query=""
 auto_next=0
 preview=0
+cont_run=0
 cache_info_check=0
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -1464,6 +1471,16 @@ case "$source" in
         resolve_title
         anime_title="$(printf "%s" "$anime_title" | sed 's| - episode.*||')"
         ep_no=$(printf "%s" "$anime_list" | grep "^$anime_id	" | sed -nE 's/.*- episode (.+)$/\1/p')
+        # Continuing skips the audio & preview questions: reuse the audio track
+        # used last time (if we remember it) and jump straight in.
+        cont_run=1
+        _mode_key=$(printf "mode_%s" "$anime_id" | tr -c '[:alnum:]' '_')
+        if [ -f "$resume_dir/$_mode_key" ]; then
+            _saved_mode=$(cat "$resume_dir/$_mode_key")
+            case "$_saved_mode" in dub) mode="dub" ;; *) mode="sub" ;; esac
+            info "Audio: $mode (from last time)"
+        fi
+        mode_set=1
         resolve_episodes
         ;;
     trending)
@@ -1517,7 +1534,7 @@ fi
 
 # After the episode (and audio) are picked, let mpv users poke at the first
 # few seconds before committing. Esc to skip the peek and dive straight in.
-if [ "$preview" != 1 ] && [ -t 0 ] && [ -t 1 ] &&
+if [ "$preview" != 1 ] && [ "$cont_run" != 1 ] && [ -t 0 ] && [ -t 1 ] &&
    printf "%s" "$ep_no" | grep -qE '^[0-9]+$' &&
    printf "%s" "$player_function" | grep -q '[mM]pv'; then
     _peek_choice=$(printf "%b" "preview\\tPeek at the first ${preview_len}s\\ncontinue\\tDive straight in" | menu "Episode $ep_no of $anime_title — " "" "$menu_extra_flags")

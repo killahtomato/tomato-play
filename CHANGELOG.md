@@ -3,6 +3,14 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.1] - 2026-09-09
+
+### Changed
+
+- `-c`/`--continue` no longer asks about audio or a preview: it silently carries
+  over the audio track used last time for that show (remembered per show at
+  playback, cleared by `-D`) and jumps straight in.
+
 ## [1.6.0] - 2026-09-09
 
 ### Added
