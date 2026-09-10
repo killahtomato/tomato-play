@@ -1,6 +1,7 @@
 # fish completion for tomato-play (tp/tomatoplay)
 complete -c tp -c tomatoplay -s s -l source -xa "all anidb aniwatch gogoanime 9anime animeplanet anisearch youtube" -d "Search source"
 complete -c tp -c tomatoplay -s c -l continue -d "Continue watching from history"
+complete -c tp -c tomatoplay -s f -l file -rF -d "Play a local file or folder"
 complete -c tp -c tomatoplay -s T -l trending -d "Browse what is popular"
 complete -c tp -c tomatoplay -s L -l lucky-tomato -d "Pluck a random playable show"
 complete -c tp -c tomatoplay -s d -l download -d "Download instead of playing"

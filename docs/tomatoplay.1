@@ -1,4 +1,4 @@
-.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.6.1" "User Commands"
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.7.0" "User Commands"
 .SH NAME
 tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
 .SH SYNOPSIS
@@ -12,7 +12,8 @@ tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple so
 is a CLI tool to search and stream anime, movies, and TV series from multiple
 sources. It provides interactive search via fzf/rofi/dmenu, quality selection,
 download support, and a watch history. Run without arguments to get a home
-menu: search, continue watching, history, trending, and a surprise pick.
+menu: search, continue watching, history, trending, a surprise pick, or local
+file playback. Pass an existing file or folder path to play it directly.
 .SH OPTIONS
 .TP
 .B -s, --source SOURCE
@@ -20,6 +21,12 @@ Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch,
 .TP
 .B -c, --continue
 Continue watching from history, resuming where you left off — no audio or preview prompts (mpv).
+.TP
+.B -f, --file [PATH]
+Play media from a local file or folder, fully offline — no search or network
+needed. A folder path opens a picker; a file path starts playing immediately;
+a bare path argument behaves the same. External subtitle files next to the
+video are picked up automatically by the player.
 .TP
 .B -T, --trending
 Browse what's popular right now, without typing a search.

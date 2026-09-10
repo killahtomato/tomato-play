@@ -8,6 +8,7 @@ _tomato_play() {
         '(-s --source)'{-s,--source}'[specify source]:source:(all anidb aniwatch gogoanime 9anime animeplanet anisearch youtube)' \
         '(-a --audio)'{-a,--audio}'[audio track]:audio:(sub dub)' \
         '(-c --continue)'{-c,--continue}'[continue watching from history]' \
+        '(-f --file)'{-f,--file}'[play a local file or folder]:path:_files' \
         '(-T --trending)'{-T,--trending}'[browse what is popular]' \
         '(-L --lucky-tomato)'{-L,--lucky-tomato}'[pluck a random playable show]' \
         '(-d --download)'{-d,--download}'[download instead of playing]' \

@@ -3,6 +3,17 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.7.0] - 2026-09-10
+
+### Added
+
+- Local media playback, fully offline: `-f, --file [PATH]`, a bare path
+  argument, or a "Play a local file" entry in the home menu. A folder opens a
+  picker for the video files inside (`mkv`, `mp4`, `webm`, ...); a file plays
+  straight away. Plays reuse the usual player dispatch, keep mpv resume/rewind
+  working, and external subtitle files are picked up automatically. Local plays
+  don't touch the anime watch history.
+
 ## [1.6.1] - 2026-09-09
 
 ### Changed

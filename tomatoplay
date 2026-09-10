@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.6.1"
+version_number="1.7.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -124,6 +124,10 @@ help_info() {
         Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube)
       -c, --continue
         Continue watching from history, resuming where you left off — no audio or preview prompts (mpv)
+      -f, --file [PATH]
+        Play media from a local file or folder (offline — no search needed).
+        Pick a folder and choose a file from it; give a file and it plays
+        straight away. Bare paths work too: tp ~/videos/ep01.mkv
       -T, --trending
         Browse what's popular on the vine right now
       -L, --lucky-tomato
@@ -828,6 +832,25 @@ resolve_episodes() {
     [ -z "$ep_no" ] && die "Couldn't find that episode, sorry!"
 }
 
+# List playable media for local playback: a single file as-is, or every video
+# file under a folder (paths + names relative to that folder so menus stay
+# readable). External subtitle files are left alone — players pick them up by
+# matching the video's basename.
+local_media_list() {
+    if [ -f "$1" ]; then
+        printf "%s\t%s\n" "$1" "$(basename "$1")"
+        return 0
+    fi
+    _lm_prefix="$1/"
+    find -L "$1" -type f \( -iname '*.mkv' -o -iname '*.mp4' -o -iname '*.webm' -o \
+        -iname '*.avi' -o -iname '*.mov' -o -iname '*.m4v' -o -iname '*.ts' -o \
+        -iname '*.flv' -o -iname '*.wmv' -o -iname '*.mpg' -o -iname '*.mpeg' -o \
+        -iname '*.3gp' -o -iname '*.ogv' -o -iname '*.mts' -o -iname '*.vob' \) \
+        2>/dev/null | sort | while IFS= read -r _lf; do
+        printf "%s\t%s\n" "$_lf" "${_lf#"$_lm_prefix"}"
+    done
+}
+
 # --lucky-tomato: shuffle the trending list and stop at the first show that
 # actually has a playable stream.
 pick_lucky_show() {
@@ -864,8 +887,9 @@ home_menu() {
         printf "      3) View watch history\n"
         printf "      4) See what's Hot on the Vine\n"
         printf "      5) Lucky Tomato (surprise me!)\n"
+        printf "      6) Play a local file\n"
         printf "      q) Quit\n"
-        printf "\n    Choice [1-5/q]: "
+        printf "\n    Choice [1-6/q]: "
         read -r _home_choice
         case "$_home_choice" in
             1|s|search)
@@ -883,6 +907,9 @@ home_menu() {
                 break ;;
             5|l|lucky)
                 source=lucky
+                break ;;
+            6|f|file|local)
+                source=files
                 break ;;
             q|Q|e|quit|exit)
                 exit 0
@@ -1140,37 +1167,41 @@ play_episode() {
             ;;
     esac
 
+    # Local files aren't episodes, so use the plain name as the player title.
+    _title="${anime_title} Episode ${ep_no}"
+    [ "$source" = "files" ] && _title="$anime_title"
+
     case "$player_function" in
         debug) printf "All links:\n%s\nSelected link:\n%s\n" "$links" "$video_link" ;;
-        android_mpv) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n is.xyz.mpv/.MPVActivity -e "title" "${anime_title} Episode ${ep_no}" $player_extra_flags >/dev/null 2>&1 & ;;
-        android_vlc) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "${anime_title} Episode ${ep_no}" $player_extra_flags >/dev/null 2>&1 & ;;
-        *flatpak*mpv*) flatpak run io.mpv.Mpv $player_extra_flags $_hls_flags $_wl_flags --force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 & ;;
+        android_mpv) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n is.xyz.mpv/.MPVActivity -e "title" "$_title" $player_extra_flags >/dev/null 2>&1 & ;;
+        android_vlc) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "$_title" $player_extra_flags >/dev/null 2>&1 & ;;
+        *flatpak*mpv*) flatpak run io.mpv.Mpv $player_extra_flags $_hls_flags $_wl_flags --force-media-title="$_title" "$video_link" >/dev/null 2>&1 & ;;
         *mpv*)
             _peek=""
             [ "$preview" = 1 ] && _peek="--length=$preview_len"
             if [ "$no_detach" = 0 ]; then
-                nohup $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 &
+                nohup $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="$_title" "$video_link" >/dev/null 2>&1 &
             else
                 [ "$preview" = 1 ] && info "Peeking for ${preview_len}s — mpv will close itself."
-                $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="${anime_title} Episode ${ep_no}" "$video_link"
+                $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="$_title" "$video_link"
                 mpv_exitcode=$?
                 [ "$exit_after_play" = 1 ] && [ -z "$_range" ] && exit "$mpv_exitcode"
             fi
             ;;
         *iina*)
             if pgrep -f "IINA" >/dev/null 2>&1; then
-                nohup $player_function $player_extra_flags --no-stdin --mpv-force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 &
+                nohup $player_function $player_extra_flags --no-stdin --mpv-force-media-title="$_title" "$video_link" >/dev/null 2>&1 &
             else
-                nohup $player_function $player_extra_flags --no-stdin --keep-running --mpv-force-media-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 &
+                nohup $player_function $player_extra_flags --no-stdin --keep-running --mpv-force-media-title="$_title" "$video_link" >/dev/null 2>&1 &
             fi
             ;;
-        *vlc*) nohup $player_function $player_extra_flags --play-and-exit --meta-title="${anime_title} Episode ${ep_no}" "$video_link" >/dev/null 2>&1 & ;;
-        download) "$player_function" "$video_link" "${anime_title} Episode ${ep_no}" $player_extra_flags ;;
+        *vlc*) nohup $player_function $player_extra_flags --play-and-exit --meta-title="$_title" "$video_link" >/dev/null 2>&1 & ;;
+        download) "$player_function" "$video_link" "$_title" $player_extra_flags ;;
         *) nohup $player_function $player_extra_flags "$video_link" >/dev/null 2>&1 & ;;
     esac
     replay="$video_link"
     unset video_link
-    update_history
+    [ "$source" != "files" ] && update_history
     [ "$menu_program" != "fzf" ] && wait
 }
 
@@ -1308,12 +1339,15 @@ query=""
 auto_next=0
 preview=0
 cont_run=0
+local_path=""
+source_flag=0
 cache_info_check=0
 while [ $# -gt 0 ]; do
     case "$1" in
         -s | --source)
             [ $# -lt 2 ] && die "missing argument!"
             source="$2"
+            source_flag=1
             shift
             ;;
         -v | --vlc)
@@ -1336,6 +1370,13 @@ while [ $# -gt 0 ]; do
         -c | --continue) source=history ;;
         -T | --trending) source=trending ;;
         -L | --lucky-tomato) source=lucky ;;
+        -f | --file)
+            source=files
+            if [ $# -gt 1 ] && ! printf "%s" "$2" | grep -q '^-'; then
+                local_path="$2"
+                shift
+            fi
+            ;;
         -d | --download)
             player_function=download
             ;;
@@ -1395,6 +1436,17 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# A positional argument that's an existing file or folder means "play this
+# locally" — nicer than always requiring --file (unless a source was named).
+if [ "$source_flag" != 1 ] && [ -n "$query" ]; then
+    _qpath=$(printf "%s" "$query" | tr '+' ' ')
+    if [ -e "$_qpath" ]; then
+        source=files
+        local_path="$_qpath"
+        query=""
+    fi
+fi
+
 # Headless runs (non-tty) fall back to a GUI picker so menus still work while
 # piping, but never override an explicit --rofi/--dmenu/TOMATOPLAY_MENU choice.
 if [ ! -t 0 ] && [ "$_menu_explicit" != 1 ]; then
@@ -1438,7 +1490,7 @@ fi
 # Bare interactive invocations get a home menu instead of the raw search
 # prompt, with the mascot banner and tagline shown right above it.
 if [ -t 0 ] && [ -t 1 ] && [ -z "$query" ] &&
-   ! printf "%s" "$source" | grep -qxE 'history|trending|lucky'; then
+   ! printf "%s" "$source" | grep -qxE 'history|trending|lucky|files'; then
     banner
     home_menu
 else
@@ -1495,6 +1547,26 @@ case "$source" in
     lucky)
         pick_lucky_show
         ;;
+    files)
+        if [ -z "$local_path" ]; then
+            if [ -t 0 ]; then
+                printf "\33[2K\r\033[1;36mLocal file (or folder): \033[0m" && read -r local_path || exit 1
+            fi
+            [ -z "$local_path" ] && die "No local file selected, sorry!"
+        fi
+        local_path=$(printf "%s" "$local_path" | sed "s|^~|$HOME|")
+        [ -e "$local_path" ] || die "No such file or folder: $local_path"
+        local_files="$(local_media_list "$local_path")"
+        [ -z "$local_files" ] && die "No playable media in that folder, sorry!"
+        _choice="$(printf "%s\n" "$local_files" | nl -w 2 | sed 's/^[[:space:]]//' | nth "Pick a local file: ")"
+        [ -z "$_choice" ] && die "That pick didn't work out — try again!"
+        video_link="$(printf "%s" "$_choice" | cut -f 1)"
+        anime_title="$(printf "%s" "$_choice" | cut -f 2)"
+        anime_id="$(printf "%s" "$video_link" | tr -c '[:alnum:]' '_')"
+        ep_no="1"
+        episode_maps="1"
+        ep_list="1"
+        ;;
     *)
         while [ -z "$query" ]; do
             printf "\33[2K\r\033[1;36mSearch: \033[0m" && read -r query || exit 1
@@ -1534,7 +1606,7 @@ fi
 
 # After the episode (and audio) are picked, let mpv users poke at the first
 # few seconds before committing. Esc to skip the peek and dive straight in.
-if [ "$preview" != 1 ] && [ "$cont_run" != 1 ] && [ -t 0 ] && [ -t 1 ] &&
+if [ "$preview" != 1 ] && [ "$cont_run" != 1 ] && [ "$source" != "files" ] && [ -t 0 ] && [ -t 1 ] &&
    printf "%s" "$ep_no" | grep -qE '^[0-9]+$' &&
    printf "%s" "$player_function" | grep -q '[mM]pv'; then
     _peek_choice=$(printf "%b" "preview\\tPeek at the first ${preview_len}s\\ncontinue\\tDive straight in" | menu "Episode $ep_no of $anime_title — " "" "$menu_extra_flags")
@@ -1549,6 +1621,10 @@ tput sc
 
 play
 [ "$player_function" = "download" ] || [ "$player_function" = "debug" ] && exit 0
+
+# Local plays are one-shot: no episode loop, just fire and (optionally) keep
+# the player attached until it finishes.
+[ "$source" = "files" ] && exit 0
 
 while cmd=$(printf "next\nreplay\nprevious\nselect\nchange_audio\nchange_quality\nquit" | nth "Now showing episode $ep_no of $anime_title — enjoy! ... "); do
     case "$cmd" in

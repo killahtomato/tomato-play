@@ -12,6 +12,7 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 - `tp -c` resumes where you left off mid-episode (mpv), rewinding
   `resume_back` seconds (default 10)
 - `tp --preview`: peek at the first seconds of an episode (mpv)
+- `tp -f` / `tp local.mp4`: play local files and folders, fully offline
 - Config file at `~/.config/tomato-play/tomato-playrc`
 - Shell completions for bash, zsh, and fish
 - Cache tools: `--cache-info`, `--clear-cache`, `--no-cache`
@@ -74,7 +75,7 @@ Set `PREFIX` to install elsewhere (defaults to `/usr/local`):
 ## Usage
 
 ```bash
-# Home menu (search, continue, history, trending, surprise me :3)
+# Home menu (search, continue, history, trending, surprise me, local files :3)
 tp
 
 # Basic search
@@ -103,6 +104,10 @@ tp -c
 # (resumes where you left off — set resume_back / TOMATOPLAY_RESUME_BACK for
 #  how many seconds to rewind, default 10)
 
+# Local media — fully offline, no search needed
+tp -f ~/videos/my-show/          # folder -> pick a file inside
+tp ~/videos/ep01.mkv             # bare path plays straight away
+
 # Marathon mode (auto-next episode)
 tp -n "one piece"
 
@@ -128,6 +133,7 @@ tp -h
 ```
 -s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, youtube)
 -c, --continue         Continue watching from history
+-f, --file [PATH]      Play media from a local file or folder (offline)
 -T, --trending         Browse what's popular right now
 -L, --lucky-tomato     Pluck a random (playable) show off the vine
 -d, --download         Download the video instead of playing it
