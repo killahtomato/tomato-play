@@ -155,6 +155,8 @@ TOMATOPLAY_PROXY       Route requests through a proxy (e.g. socks5h://127.0.0.1:
 -n, --next             Marathon mode: auto-play the next episode to the end
 --preview              Peek at the first TOMATOPLAY_PREVIEW_SECS (default 60s);
                        also offered interactively after picking an episode
+--cast                 Stream the picked torrent to a nearby Chromecast
+--dlna                 Stream the picked torrent to a DLNA device/TV
 --cache-info           Show cache size and entries
 --clear-cache          Wipe the cache
 --no-cache             Disable the cache for this run
@@ -193,6 +195,7 @@ Environment variables:
 - `TOMATOPLAY_TORRENT_PEEK` - Seconds to hunt for torrent seeders before bailing (default: 30)
 - `TOMATOPLAY_TORRENT_LIST_PEEK` - Seconds per torrent when listing live peer counts (default: 8)
 - `TOMATOPLAY_TPB_BASE` - First Pirate Bay host to try (default: https://piratebay.party)
+- `TOMATOPLAY_ANILIST_TOKEN` - AniList API token; when set, watched episodes are scrobbled to your AniList after playback
 
 ## Contributing
 

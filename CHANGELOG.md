@@ -3,6 +3,16 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.11.0] - 2026-09-27
+
+### Added
+
+- Cast to TV: `--cast` streams the picked torrent to a nearby Chromecast and
+  `--dlna` to a DLNA renderer, via webtorrent's native push (no local player).
+- AniList scrobbling: with `TOMATOPLAY_ANILIST_TOKEN` (or `anilist_token` in
+  the config), each played episode quietly marks itself watched on AniList in
+  the background — your list stays in sync across devices.
+
 ## [1.10.1] - 2026-09-27
 
 ### Fixed

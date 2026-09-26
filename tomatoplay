@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.10.1"
+version_number="1.11.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -173,6 +173,11 @@ help_info() {
         Peek at the first TOMATOPLAY_PREVIEW_SECS seconds (default 60) of an
         episode before committing (mpv only). Also offered interactively after
         picking an episode.
+      --cast
+        Stream the picked torrent straight to a nearby Chromecast instead of
+        opening a local player (requires webtorrent-cli).
+      --dlna
+        Same, but for DLNA renderers/TVs.
       --cache-info
         Show where the cache lives, how many entries it has, and its size
       --clear-cache
@@ -910,6 +915,39 @@ tpb_m3u8() {
 }
 
 # ============================================================================
+# AniList scrobbling: after a play, quietly mark the episode as watched on
+# AniList so your list stays in sync across devices. Opt-in via
+# TOMATOPLAY_ANILIST_TOKEN (from anilist.co settings -> API). Runs detached so
+# playback never waits on it; failures are silent.
+# ============================================================================
+
+_json_str() {
+    printf '%s' "$1" | sed -e 's|\\|\\\\|g' -e 's|"|\\"|g'
+}
+
+anilist_scrobble() {
+    [ -n "${TOMATOPLAY_ANILIST_TOKEN:-}" ] || return 0
+    _as_title="$1"
+    _as_ep="$2"
+    printf "%s" "$_as_ep" | grep -qE '^[1-9][0-9]*$' || return 0
+    _as_id="$(curl -sS -m 12 -X POST -H "Authorization: Bearer ${TOMATOPLAY_ANILIST_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{\"query\":\"query(\\\$q:String){Media(search:\\\$q,type:ANIME){id}}\",\"variables\":{\"q\":\"$(_json_str "$_as_title")\"}}" \
+        "https://graphql.anilist.co" | grep -oE '"id":[0-9]+' | head -n 1 | cut -d: -f2)"
+    [ -n "$_as_id" ] || return 0
+    _as_prog="$(curl -sS -m 12 -X POST -H "Authorization: Bearer ${TOMATOPLAY_ANILIST_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{\"query\":\"query(\\\$id:Int){Media(id:\\\$id){mediaListEntry{progress}}}\",\"variables\":{\"id\":$_as_id}}" \
+        "https://graphql.anilist.co" | grep -oE '"progress":[0-9]+' | head -n 1 | cut -d: -f2)"
+    [ -n "$_as_prog" ] || _as_prog=0
+    [ "$_as_ep" -le "$_as_prog" ] && return 0
+    curl -sS -m 12 -X POST -H "Authorization: Bearer ${TOMATOPLAY_ANILIST_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{\"query\":\"mutation(\\\$id:Int,\\\$prog:Int){SaveMediaListEntry(mediaId:\\\$id,progress:\\\$prog){id}}\",\"variables\":{\"id\":$_as_id,\"prog\":$_as_ep}}" \
+        "https://graphql.anilist.co" >/dev/null 2>&1
+}
+
+# ============================================================================
 # Provider Selection
 # ============================================================================
 
@@ -1567,6 +1605,13 @@ play_episode() {
     _title="${anime_title} Episode ${ep_no}"
     [ "$source" = "files" ] && _title="$anime_title"
 
+    # Opt-in AniList scrobbling, fired in the background so playback never
+    # waits (torrents/local/youtube skip — unreliable title matching).
+    case "$source" in
+        files | nyaa | tpb | youtube) ;;
+        *) ( anilist_scrobble "$anime_title" "$ep_no" & ) ;;
+    esac
+
     # Torrents (nyaa): stream straight into the player via webtorrent-cli.
     # Without it, fall back to a clean handoff — print the magnet, copy it to
     # the clipboard, and save the .torrent — instead of failing silently.
@@ -1584,6 +1629,7 @@ play_episode() {
                 debug) printf "Magnet:\n%s\n" "$video_link"; exit 0 ;;
                 *) _torrent_viewer="--mpv" ;;
             esac
+            [ -n "$cast_dest" ] && _torrent_viewer="$cast_dest"
             # Preflight: fetch metadata + confirm seeders, and KEEP the .torrent
             # file webtorrent drops — feeding it the file (instead of the magnet)
             # skips the silent metadata/ready network wait entirely.
@@ -1630,6 +1676,15 @@ play_episode() {
                     webtorrent download "$_torrent_src" $_isel -o "$download_dir"
                     _trc=$?
                     [ "$_trc" != "0" ] && warn "webtorrent had trouble (exit $_trc) — grab the magnet instead: $video_link"
+                    rm -rf "$_td"
+                    exit 0
+                fi
+                # Casting: webtorrent serves + pushes to the TV itself.
+                if [ -n "$cast_dest" ]; then
+                    info "Casting '$_torrent_label' to your TV — keep your device awake…"
+                    webtorrent "$_torrent_src" $_isel "$_torrent_viewer"
+                    _trc=$?
+                    [ "$_trc" != "0" ] && warn "cast session ended oddly (exit $_trc) — grab the magnet instead: $video_link"
                     rm -rf "$_td"
                     exit 0
                 fi
@@ -1817,6 +1872,7 @@ if [ -f "$config_file" ] && [ -r "$config_file" ]; then
             source) [ -z "${TOMATOPLAY_DEFAULT_SOURCE:-}" ] && TOMATOPLAY_DEFAULT_SOURCE="$_cf_val" ;;
             download_dir) [ -z "${TOMATOPLAY_DOWNLOAD_DIR:-}" ] && TOMATOPLAY_DOWNLOAD_DIR="$_cf_val" ;;
             log) [ -z "${TOMATOPLAY_LOG:-}" ] && TOMATOPLAY_LOG="$_cf_val" ;;
+            anilist_token) [ -z "${TOMATOPLAY_ANILIST_TOKEN:-}" ] && TOMATOPLAY_ANILIST_TOKEN="$_cf_val" ;;
             cache_ttl) [ -z "${TOMATOPLAY_CACHE_TTL:-}" ] && TOMATOPLAY_CACHE_TTL="$_cf_val" ;;
             resume_back) [ -z "${TOMATOPLAY_RESUME_BACK:-}" ] && TOMATOPLAY_RESUME_BACK="$_cf_val" ;;
         esac
@@ -1837,6 +1893,7 @@ else
 # log=1        # 1 to log episodes to the system journal
 # cache_ttl=7  # wipe the cache once older than this many days
 # resume_back=10 # resume mid-episode, replaying this many seconds back
+# anilist_token= # AniList API token -> scrobble watched episodes
 EOF
 fi
 
@@ -1887,6 +1944,7 @@ query=""
 auto_next=0
 preview=0
 cont_run=0
+cast_dest=""
 local_path=""
 source_flag=0
 cache_info_check=0
@@ -1966,6 +2024,8 @@ while [ $# -gt 0 ]; do
             ;;
         --dub) mode="dub"; mode_set=1 ;;
         --no-detach) no_detach=1 ;;
+        --cast) cast_dest="--chromecast" ;;
+        --dlna) cast_dest="--dlna" ;;
         --exit-after-play) exit_after_play=1 && no_detach=1 ;;
         -n | --next) auto_next=1 && no_detach=1 ;;
         --preview) preview=1 && no_detach=1 ;;

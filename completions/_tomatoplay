@@ -29,6 +29,8 @@ _tomato_play() {
         '--exit-after-play[exit and return the player exit code]' \
         '(-n --next)'{-n,--next}'[marathon: auto-play the next episode]' \
         '--preview[peek at the first seconds of an episode]' \
+        '--cast[stream the torrent to a Chromecast]' \
+        '--dlna[stream the torrent to a DLNA device]' \
         '--cache-info[show cache size and entries]' \
         '--clear-cache[wipe the cache]' \
         '--no-cache[disable the cache]' \
