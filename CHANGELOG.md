@@ -3,6 +3,17 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.10.1] - 2026-09-27
+
+### Fixed
+
+- Pirate Bay rows carry seeders *and* leechers; the list now shows both
+  (`[seeds: 149] [leech: 19]`) so the two can't be confused. The displayed
+  seed count was already the real seeder column (the default search page is
+  seeder-sorted and that column descends perfectly), but the unambiguous dual
+  display settles it either way. The old label said "peers"; it now says
+  "seeds".
+
 ## [1.10.0] - 2026-09-27
 
 ### Added
