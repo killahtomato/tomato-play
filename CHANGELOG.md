@@ -3,6 +3,14 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.12.0] - 2026-09-27
+
+### Added
+
+- Season-pack marathon: `-n` on a multi-episode torrent walks the whole pack
+  back-to-back (episode counter in the status line), resuming each file where
+  you left off via per-file watch-later slots.
+
 ## [1.11.0] - 2026-09-27
 
 ### Added
