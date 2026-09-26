@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.7.0"
+version_number="1.8.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -121,7 +121,7 @@ help_info() {
 
     Options:
       -s, --source SOURCE
-        Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube)
+        Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili)
       -c, --continue
         Continue watching from history, resuming where you left off — no audio or preview prompts (mpv)
       -f, --file [PATH]
@@ -191,6 +191,9 @@ help_info() {
       animeplanet  - anime-planet.com (anime)
       anisearch    - anisearch.com (anime aggregator)
       youtube      - youtube.com (general video)
+      bilibili     - bilibili.com (legal; geo-restricted outside Asia —
+                     use TOMATOPLAY_PROXY / a VPN to an allowed region,
+                     and mpv + yt-dlp for playback)
 
     Some example usages:
       %s -s anidb banana fish
@@ -254,7 +257,7 @@ cleanup() {
 # ============================================================================
 
 tp_curl() {
-    _response="$($curl_exe -sL -A "$agent" --max-time 15 $cipher_flag -w ' %{http_code}' "$@")" ||
+    _response="$($curl_exe -sL -A "$agent" --max-time 15 $cipher_flag $_px_flag -w ' %{http_code}' "$@")" ||
         die "Connection error: could not fetch $1 (curl exit $?)"
     _http_code=${_response##* }
     _response=${_response% *}
@@ -628,6 +631,159 @@ youtube_m3u8() {
 }
 
 # ============================================================================
+# Provider: bilibili (bilibili.com + bilibili.tv, best-effort)
+#
+# Bilibili is the odd one out among providers: it streams *legally*, but it's
+# wrapped in anti-bot (WBI request signing) and, in most regions, geo-locked.
+# Metadata (search + season/episode lists) works anywhere; playback only in
+# regions where bilibili lets you watch, or through a VPN/proxy. We resolve
+# streams to the episode *page* — mpv/iina and `-d` drive it through yt-dlp,
+# which muxes the separate audio/video DASH tracks and handles headers.
+# ============================================================================
+
+bilibili_base="https://www.bilibili.com"
+
+# Browser fingerprint cookies (buvid3/buvid4): most API endpoints demand them.
+_bili_cookies=""
+_bili_wbi_key=""
+_bili_blocked=0
+
+_bili_get() {
+    curl -sL -A "$agent" --max-time 15 $_px_flag -b "$_bili_cookies" \
+        -H "Referer: ${bilibili_base}/" "$@"
+}
+
+_bili_boot() {
+    [ -z "$_bili_cookies" ] || return 0
+    _resp="$(_bili_get "https://api.bilibili.com/x/frontend/finger/spi" 2>/dev/null)" || return 1
+    _b3="$(printf "%s" "$_resp" | sed -nE 's|.*"b_3":"([^"]*)".*|\1|p')"
+    _b4="$(printf "%s" "$_resp" | sed -nE 's|.*"b_4":"([^"]*)".*|\1|p')"
+    _bili_cookies="buvid3=${_b3}; buvid4=${_b4}"
+    [ -n "${_b3:-}${_b4:-}" ]
+}
+
+# WBI: derive the session's mixin key from the two PNG keys in /nav, then sign
+# the query params. https://github.com/SocialSisterYi/bilibili-API-collect
+_bili_wbi_key() {
+    [ -n "$_bili_wbi_key" ] && return 0
+    _bili_boot || return 1
+    _nav="$(_bili_get "https://api.bilibili.com/x/web-interface/nav" 2>/dev/null)" || return 1
+    _lookup="$(printf "%s" "$_nav" | sed -nE 's|.*"img_url":"[^"]*/([^"/]*)\.png".*"sub_url":"[^"]*/([^"/]*)\.png".*|\1\2|p')"
+    [ -z "$_lookup" ] && return 1
+    _bili_wbi_key="$(printf "%s" "$_lookup" | awk '{
+        tab = "46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52"
+        n = split(tab, a, ","); s = ""
+        for (i = 1; i <= n; i++) s = s substr($0, a[i] + 1, 1)
+        printf "%s", substr(s, 1, 32)
+    }')"
+    [ -n "$_bili_wbi_key" ]
+}
+
+# Sign $1 (a "k=v&k2=v2" param string, values URL-encoded, spaces as +) with
+# the WBI key: sort, drop !'()* from values, append wts, md5 over query+key.
+_bili_wbi_sign() {
+    _ts="$(date +%s)"
+    if [ -n "$1" ]; then _q="$1&wts=${_ts}"; else _q="wts=${_ts}"; fi
+    _body="$(printf "%s" "$_q" | tr '&' '\n' | sort | tr '\n' '&' | sed 's/&$//; s/[!'\''()*]//g')"
+    case "$(uname -s)" in
+        Darwin*) _rid="$(printf "%s%s" "$_body" "$_bili_wbi_key" | md5 -q)" ;;
+        *) _rid="$(printf "%s%s" "$_body" "$_bili_wbi_key" | md5sum | awk '{ print $1 }')" ;;
+    esac
+    printf "%s&w_rid=%s" "$_body" "$_rid"
+}
+
+# WBI-signed media_bangumi search. Bilibili rate-limits aggressively and can
+# soft-return empty results or a v_voucher risk-control challenge; we refresh
+# the fingerprint cookies and retry once, then surface a gentle warning.
+bilibili_search() {
+    _bili_blocked=0
+    _attempts=2
+    _resp=""
+    while [ "$_attempts" -gt 0 ]; do
+        _attempts=$((_attempts - 1))
+        _bili_wbi_key || { _bili_blocked=1; return 1; }
+        _kw="$(printf "%s" "$1" | sed 's|  *|+|g; s| |+|g')"
+        _signed="$(_bili_wbi_sign "keyword=${_kw}&page=1&search_type=media_bangumi")"
+        _resp="$(curl -sL -A "$agent" --max-time 15 $_px_flag -b "$_bili_cookies" \
+            -H "Referer: https://search.bilibili.com/" \
+            "https://api.bilibili.com/x/web-interface/wbi/search/type?${_signed}")"
+        case "$_resp" in
+            *'"code":-412'* | *'"code":-2'*)
+                warn "bilibili search is rate-limiting right now — wait a few minutes, or try a VPN/proxy via TOMATOPLAY_PROXY."
+                return 1
+                ;;
+            *v_voucher*)
+                # Risk-control challenge on a fresh fingerprint; retire the
+                # cookies and try one more time with a brand-new one.
+                _bili_cookies=""
+                ;;
+            *) break ;;
+        esac
+    done
+    [ -z "$_resp" ] && return 1
+    case "$_resp" in
+        *v_voucher* | *'"result":null'*)
+            warn "bilibili search is fighting its anti-bot right now — wait a few minutes or try a VPN/proxy (TOMATOPLAY_PROXY)."
+            return 1
+            ;;
+    esac
+    printf "%s" "$_resp" | sed 's|},{"|\n{"|g' \
+        | sed -nE 's|.*"title":"(.*)","org_title":.*"season_id":([0-9]+),.*|\2\t\1|p' \
+        | sed -e "s|\\\\u003c|<|g" -e "s|\\\\u003e|>|g" -e "s|\\\\u0026|\&|g" -e "s|\\\\u0027|'|g" -e "s|\\\\u0022|\"|g" \
+        | sed -e 's|<[^>]*>||g' -e 's|&quot;|"|g' -e "s|&#39;|'|g" -e 's|&amp;|\&|g' \
+        | grep -v '^[[:space:]]*$' | head -n 10
+}
+
+# Season -> episode list. Metadata is geo-neutral, so this works anywhere.
+bilibili_episodes() {
+    _bili_boot || return 1
+    _resp="$(_bili_get "https://api.bilibili.com/pgc/view/web/season?season_id=$1")"
+    case "$_resp" in
+        *'"code":0'*) ;;
+        *) return 1 ;;
+    esac
+    # Emit plain episode numbers (1,2,3…, matching -e and ranges). The
+    # playurl step maps the number back to bilibili's ep_id by array position.
+    _resp="$(printf "%s" "$_resp" | grep -oE '"ep_id":[0-9]+' | cut -d: -f2)"
+    _n=0
+    while IFS= read -r _ep; do
+        _n=$((_n + 1))
+        printf "%s\t%s\tEpisode %s\n" "$_n" "$_n" "$_n"
+    done <<EOF
+$_resp
+EOF
+}
+
+# Episode -> stream. We return the watch *page* so mpv/iina/(-d yt-dlp) can
+# mux the separate video/audio DASH tracks. Region/login locks are reported
+# plainly instead of being silently handed to the player.
+bilibili_m3u8() {
+    _bili_err=""
+    _bili_boot || { _bili_err="bilibili fingerprint handshake failed (proxy/VPN problem?) — check TOMATOPLAY_PROXY."; return 1; }
+    # $2 is a 1-based episode number; map it to bilibili's ep_id by position.
+    _ep_id="$(_bili_get "https://api.bilibili.com/pgc/view/web/season?season_id=$1" | grep -oE '"ep_id":[0-9]+' | cut -d: -f2 | sed -n "${2}p")"
+    [ -z "$_ep_id" ] && { _bili_err="bilibili couldn't find episode $2."; return 1; }
+    _resp="$(_bili_get "https://api.bilibili.com/pgc/player/web/v2/playurl?ep_id=${_ep_id}&qn=64&fnval=16" \
+        -H "Referer: ${bilibili_base}/bangumi/play/ep${_ep_id}")"
+    case "$_resp" in
+        *'"code":-10403'*)
+            _bili_err="bilibili says that episode is geo-restricted for you. Enable a VPN or proxy (TOMATOPLAY_PROXY / HTTPS_PROXY) pointing at an allowed region and try again."
+            return 1 ;;
+        *'"code":-10400'* | *'"code":-400'* | *'"code":-401'*)
+            _bili_err="bilibili wants a login for that one."
+            return 1 ;;
+        *'"code":-404'*)
+            _bili_err="bilibili couldn't find that episode (it may have been removed)."
+            return 1 ;;
+        *'"code":0'*) ;;
+        *)
+            _bili_err="bilibili refused to hand over a stream for episode $2."
+            return 1 ;;
+    esac
+    printf "best >%s/bangumi/play/ep%s\n" "$bilibili_base" "$_ep_id"
+}
+
+# ============================================================================
 # Provider Selection
 # ============================================================================
 
@@ -640,11 +796,12 @@ provider_search() {
         animeplanet) animeplanet_search "$2" ;;
         anisearch) anisearch_search "$2" ;;
         youtube) youtube_search "$2" ;;
+        bilibili) bilibili_search "$2" ;;
         all)
             # Search all providers and combine results (prefixed with provider),
             # streamable sources first so the default selection is playable.
             _results=""
-            for _provider in aniwatch gogoanime 9anime anidb youtube animeplanet anisearch; do
+            for _provider in aniwatch gogoanime 9anime anidb youtube animeplanet anisearch bilibili; do
                 [ "$_provider" = "youtube" ] && continue
                 _provider_results="$("${_provider}_search" "$2" 2>/dev/null)"
                 if [ -n "$_provider_results" ]; then
@@ -760,6 +917,7 @@ provider_episodes() {
         animeplanet) _epi_out="$(animeplanet_episodes "$2" 2>/dev/null)" ;;
         anisearch) _epi_out="$(anisearch_episodes "$2" 2>/dev/null)" ;;
         youtube) _epi_out="$(youtube_episodes "$2" 2>/dev/null)" ;;
+        bilibili) _epi_out="$(bilibili_episodes "$2" 2>/dev/null)" ;;
         *) die "Unknown provider: $1" ;;
     esac
     [ -z "$_epi_out" ] && return 1
@@ -819,7 +977,7 @@ resolve_title() {
         real_source="${anime_id%%:*}"
         anime_id="${anime_id#*:}"
         case "$real_source" in
-            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube) source="$real_source" ;;
+            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube|bilibili) source="$real_source" ;;
             *) die "Invalid provider in selection" ;;
         esac
     fi
@@ -931,7 +1089,7 @@ filter_entries() {
         _check_rid="$(printf '%s\n' "$_check_line" | cut -f 1)"
         _check_p="${_check_rid%%:*}"
         case "$_check_p" in
-            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube)
+            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube|bilibili)
                 _check_source="$_check_p"
                 _check_id="${_check_rid#*:}" ;;
             *) _check_source="$source" _check_id="$_check_rid" ;;
@@ -940,11 +1098,18 @@ filter_entries() {
         {
             _venice="$(provider_episodes "$_check_source" "$_check_id" 2>/dev/null)"
             _vfirst="$(printf '%s\n' "$_venice" | cut -f 1 | head -n 1)"
-            if [ -n "$_vfirst" ] && {
-                provider_m3u8 "$_check_source" "$_check_id" "$_vfirst" sub 2>/dev/null | _probe_playable ||
-                provider_m3u8 "$_check_source" "$_check_id" "$_vfirst" dub 2>/dev/null | _probe_playable
-            }; then
-                printf "%s\n" "$_check_line"
+            if [ -n "$_vfirst" ]; then
+                if [ "$_check_source" = "bilibili" ]; then
+                    # Legal but geo-blocked: skip the stream probe (it would
+                    # fail outside allowed regions) and keep the entry — playback
+                    # later explains the region lock instead of silently dropping.
+                    printf "%s\n" "$_check_line"
+                elif {
+                    provider_m3u8 "$_check_source" "$_check_id" "$_vfirst" sub 2>/dev/null | _probe_playable ||
+                    provider_m3u8 "$_check_source" "$_check_id" "$_vfirst" dub 2>/dev/null | _probe_playable
+                }; then
+                    printf "%s\n" "$_check_line"
+                fi
             fi
         } 2>/dev/null >"$_fdir/$_jobs" &
         if [ "$_jobs" -ge "5" ]; then
@@ -982,6 +1147,21 @@ _probe_playable() {
     return 1
 }
 
+# Shallow reachability check on a resolved stream before handing it to the
+# player. Distinguishes "this CDN is having a moment" (HTTP 5xx, timeouts,
+# dropped connections) from a genuinely working link, so a dead server no
+# longer means a silent 20-second mpv hang. Conservative on 403s — some CDNs
+# block curl but still serve the player.
+_stream_alive() {
+    _code="$(curl -s -o /dev/null --max-time 8 -A "${agent:-Mozilla/5.0}" -w '%{http_code}' "$1" 2>/dev/null)"
+    [ $? -ne 0 ] && return 1
+    case "$_code" in
+        2* | 3*) return 0 ;;
+        5* | 404 | 410 | 000) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 provider_m3u8() {
     _key="$(_cpe_key "m3u8" "$1" "$2" "${3:-?}" "${4:-sub}")"
     if cache_read "$_key" 30; then
@@ -995,8 +1175,11 @@ provider_m3u8() {
         animeplanet) _m3u8_out="$(animeplanet_m3u8 "$2" "$3" 2>/dev/null)" ;;
         anisearch) _m3u8_out="$(anisearch_m3u8 "$2" "$3" 2>/dev/null)" ;;
         youtube) _m3u8_out="$(youtube_m3u8 "$2" "$3" 2>/dev/null)" ;;
+        bilibili) _m3u8_out="$(bilibili_m3u8 "$2" "$3" 2>/dev/null)" ;;
         *) die "Unknown provider: $1" ;;
     esac
+    [ -n "${_bili_err:-}" ] && warn "bilibili brief: $_bili_err"
+    _bili_err=""
     [ -z "$_m3u8_out" ] && return 1
     cache_write "$_key" "$_m3u8_out"
     printf "%s\n" "$_m3u8_out"
@@ -1020,7 +1203,24 @@ get_video_link() {
     links=$(provider_m3u8 "$source" "$anime_id" "$ep_no" "$mode" | sort -g -r -s)
     [ -z "$links" ] && die "No streams available for that one right now :("
     info "We found some streams on $source."
-    select_quality "$quality"
+    # Prefer the requested quality, otherwise the best one.
+    case "$quality" in
+        worst) _cand="$(printf "%s\n" "$links" | grep -E '^[0-9]{3,4}' | tail -n 1)" ;;
+        *) _cand="$(printf "%s\n" "$links" | grep -m 1 "$quality")" ;;
+    esac
+    [ -z "$_cand" ] && _cand="$(printf "%s\n" "$links" | head -n 1)"
+    video_link="$(printf "%s" "$_cand" | cut -d ">" -f 2)"
+    if ! _stream_alive "$video_link"; then
+        warn "That stream's host isn't answering — skipping to the next one."
+        # Fall through to the next alive server/quality instead of a dead hang.
+        video_link="$(printf "%s\n" "$links" | while IFS= read -r _line; do
+            [ "$_line" = "$_cand" ] && continue
+            _try="$(printf "%s" "$_line" | cut -d ">" -f 2)"
+            if _stream_alive "$_try"; then printf "%s\n" "$_try"; break; fi
+        done | head -n 1)"
+        [ -z "$video_link" ] && die "Every stream for that one is down right now — try again in a bit :("
+        warn "Streams on $source are flaky — if it stutters, rerun in a minute."
+    fi
     [ -z "$video_link" ] && die "Couldn't grab a stream link, sorry! :/"
 }
 
@@ -1089,7 +1289,7 @@ garden_stats() {
 source_health() {
     printf "\n    \033[1;32mProbing the vine — how ripe are the sources?\033[0m\n"
     printf "    %-14s %-9s %s\n" "source" "search" "playable"
-    for _p in aniwatch gogoanime 9anime anidb animeplanet anisearch youtube; do
+    for _p in aniwatch gogoanime 9anime anidb animeplanet anisearch youtube bilibili; do
         _search="no"
         _play="-"
         _r="$(provider_search "$_p" "naruto" 2>/dev/null | head -n 1)"
@@ -1247,6 +1447,11 @@ ciphers='ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-A
 tls13_ciphers='TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256'
 agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
+# Global proxy: applied to every provider request. Handy for geo-locked
+# sources (bilibili) — or just use a VPN, which curl follows anyway.
+_px_flag=""
+[ -n "${TOMATOPLAY_PROXY:-}" ] && _px_flag="-x $TOMATOPLAY_PROXY"
+
 # ============================================================================
 # Config file: ~/.config/tomato-play/tomato-playrc
 # Optional KEY=VALUE defaults read before the environment. Precedence is
@@ -1284,7 +1489,7 @@ else
 # quality=best # mpv-style quality string
 # player=mpv   # player binary or flatpak path
 # menu=fzf     # fzf, rofi, or dmenu
-# source=all   # all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube
+# source=all   # all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili
 # download_dir=.
 # log=1        # 1 to log episodes to the system journal
 # cache_ttl=7  # wipe the cache once older than this many days
@@ -1575,11 +1780,21 @@ case "$source" in
         query=$(printf "%s" "$query" | tr -s ' ')
 
         anime_list=$(fuzzy_search "$source" "$query") || exit 1
-        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe?"
+        if [ -z "$anime_list" ]; then
+            if [ "$source" = "bilibili" ]; then
+                die "bilibili came up empty for that — it rate-limits search aggressively and often misses English titles. Try the Chinese name, wait a few minutes, or use -s aniwatch."
+            fi
+            die "Hmm, nothing found for that — double-check the spelling maybe?"
+        fi
         # Only offer series that actually have an episode list (anything else
         # would fail later with an invalid episode selection).
         anime_list=$(printf "%s\n" "$anime_list" | filter_entries)
-        [ -z "$anime_list" ] && die "Hmm, nothing found for that — double-check the spelling maybe?"
+        if [ -z "$anime_list" ]; then
+            if [ "$source" = "bilibili" ]; then
+                die "bilibili had candidates but none could be verified playable — likely geo-locked. Enable a VPN/proxy (TOMATOPLAY_PROXY) for bilibili, or use -s aniwatch."
+            fi
+            die "Hmm, nothing found for that — double-check the spelling maybe?"
+        fi
         resolve_title
         resolve_episodes
         ;;

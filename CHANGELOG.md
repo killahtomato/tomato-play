@@ -3,6 +3,31 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.0] - 2026-09-26
+
+### Added
+
+- New source: `bilibili` (bilibili.com, legal). WBI-signed search, season
+  episodes, and playback via the episode page (muxed by mpv/iina/yt-dlp).
+  Bilibili geo-restricts playback outside allowed regions, so streams fail
+  with a clear "geo-restricted — enable a VPN or proxy" message instead of a
+  hang.
+- `TOMATOPLAY_PROXY` env var: route every provider request through a proxy
+  (http/https/socks). Useful for bilibili; a system VPN also works since curl
+  follows it.
+
+## [1.7.1] - 2026-09-26
+
+### Fixed
+
+- A dead stream CDN no longer causes a silent ~20s mpv hang and no playback.
+  The chosen stream is now reachability-checked (short timeout) before the
+  player launches; if a host has gone dark (HTTP 5xx / timeouts / dropped
+  connections) it falls through to the next alive server or quality, and if
+  every stream is down it says so clearly instead of hanging.
+- Continue skipping to the *next* alive server also respects an explicitly
+  requested quality first, then falls back for `best`/`worst` like before.
+
 ## [1.7.0] - 2026-09-10
 
 ### Added

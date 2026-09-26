@@ -36,6 +36,7 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 | asiancrush | asiancrush.com | Movies/TV | Planned |
 | midnightpulp | midnightpulp.com | Movies/TV | Planned |
 | youtube | youtube.com | General video | Full |
+| bilibili | bilibili.com | Anime (legal) | Full (geo-restricted outside Asia; use `TOMATOPLAY_PROXY`/VPN)
 
 > **Note:**
 > - `*` Sources whose video streams load via JavaScript (often Cloudflare-protected)
@@ -131,7 +132,8 @@ tp -h
 ## Options
 
 ```
--s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, youtube)
+-s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili)
+TOMATOPLAY_PROXY       Route requests through a proxy (e.g. socks5h://127.0.0.1:1080); needed for bilibili outside Asia
 -c, --continue         Continue watching from history
 -f, --file [PATH]      Play media from a local file or folder (offline)
 -T, --trending         Browse what's popular right now
@@ -185,6 +187,7 @@ Environment variables:
 - `TOMATOPLAY_CONFIG` - Config file path (default: `~/.config/tomato-play/tomato-playrc`)
 - `TOMATOPLAY_CACHE_DIR` - Override the response-cache directory (default: `~/.cache/tomato-play`)
 - `TOMATOPLAY_CACHE_TTL` - Days before the whole cache is wiped (default: 7)
+- `TOMATOPLAY_PROXY` - Proxy for all provider requests (e.g. `socks5h://127.0.0.1:1080`); unblock bilibili with this
 
 ## Contributing
 

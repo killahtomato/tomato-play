@@ -9,7 +9,7 @@ _tomatoplay() {
 
     case "$prev" in
         -s | --source)
-            opts="all anidb aniwatch gogoanime 9anime animeplanet anisearch youtube"
+            opts="all anidb aniwatch gogoanime 9anime animeplanet anisearch youtube bilibili"
             ;;
         -a | --audio)
             opts="sub dub"
