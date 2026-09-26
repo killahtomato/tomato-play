@@ -3,6 +3,29 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.10.0] - 2026-09-27
+
+### Added
+
+- New source: `tpb` — torrents via The Pirate Bay mirrors (first host
+  configurable with `TOMATOPLAY_TPB_BASE`, with fallbacks). Seeder counts come
+  straight from the search page, so `[peers: N]` is real and needs no
+  webtorrent probe; playback uses the same magnet/webtorrent/handoff pipeline.
+- The torrent section of any picker is sorted by seeder count and shows the top
+  10 highest-seeded torrents (tpb rows carry real counts; nyaa rows rank below).
+- Torrent streaming serves the picked file with webtorrent and plays it through
+  your own mpv/vlc/iina (bypassing webtorrent's flaky built-in player), with a
+  pacman snack-bar animation while the stream is buffering.
+
+### Changed
+
+- Torrent picks in the picker are rendered as `[torrent] Title [peers: N]` with
+  the tag at the front: live peer counts are fetched in parallel for each
+  (bounded by `TOMATOPLAY_TORRENT_LIST_PEEK`, default 8s) and shown in green
+  when seeders exist, red when dead; `[torrent]` is in yellow. fzf renders the
+  colors; dmenu/rofi show the same info without color. Display chrome is
+  stripped before titles reach history/player/filename.
+
 ## [1.9.0] - 2026-09-26
 
 ### Added
@@ -16,7 +39,15 @@ All notable changes to Tomato Play. Format based on
 - Torrent playback preflights for seeders (`webtorrent downloadmeta`, bounded
   by `TOMATOPLAY_TORRENT_PEEK`, default 30s): a dead/no-seeder torrent
   reports "no reachable seeders" and hands you the magnet instead of hanging
-  with nothing on screen, and webtorrent's own progress stays visible.
+  with nothing on screen.
+- Torrent streaming no longer silently waits: the preflight's `.torrent` is fed
+  straight to webtorrent (skipping the metadata/`ready` network wait), and the
+  player runs in the foreground so webtorrent's own progress stays visible
+  instead of being detached to `/dev/null`.
+- Torrent picks in the list are rendered as `[torrent] Title [peers: N]` —
+  live peer counts checked in parallel (`TOMATOPLAY_TORRENT_LIST_PEEK`,
+  default 8s), green when seeders exist and red when dead, with the `[torrent]`
+  tag in yellow (fzf shows them in color).
 
 ## [1.8.0] - 2026-09-26
 

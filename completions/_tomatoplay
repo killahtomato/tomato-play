@@ -5,7 +5,7 @@
 
 _tomato_play() {
     _arguments \
-        '(-s --source)'{-s,--source}'[specify source]:source:(all anidb aniwatch gogoanime 9anime animeplanet anisearch youtube bilibili nyaa)' \
+        '(-s --source)'{-s,--source}'[specify source]:source:(all anidb aniwatch gogoanime 9anime animeplanet anisearch youtube bilibili nyaa tpb)' \
         '(-a --audio)'{-a,--audio}'[audio track]:audio:(sub dub)' \
         '(-c --continue)'{-c,--continue}'[continue watching from history]' \
         '(-f --file)'{-f,--file}'[play a local file or folder]:path:_files' \

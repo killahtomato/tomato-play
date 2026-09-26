@@ -38,6 +38,7 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 | youtube | youtube.com | General video | Full |
 | bilibili | bilibili.com | Anime (legal) | Full (geo-restricted outside Asia; use `TOMATOPLAY_PROXY`/VPN)
 | nyaa | nyaa.si | Anime torrents | Full (stream via `webtorrent-cli`, or magnet/.torrent handoff) |
+| tpb | thepiratebay mirrors | Torrents (general) | Full (seeder counts in list; stream via webtorrent/magnet) |
 
 > **Note:**
 > - `*` Sources whose video streams load via JavaScript (often Cloudflare-protected)
@@ -189,6 +190,9 @@ Environment variables:
 - `TOMATOPLAY_CACHE_DIR` - Override the response-cache directory (default: `~/.cache/tomato-play`)
 - `TOMATOPLAY_CACHE_TTL` - Days before the whole cache is wiped (default: 7)
 - `TOMATOPLAY_PROXY` - Proxy for all provider requests (e.g. `socks5h://127.0.0.1:1080`); unblock bilibili with this
+- `TOMATOPLAY_TORRENT_PEEK` - Seconds to hunt for torrent seeders before bailing (default: 30)
+- `TOMATOPLAY_TORRENT_LIST_PEEK` - Seconds per torrent when listing live peer counts (default: 8)
+- `TOMATOPLAY_TPB_BASE` - First Pirate Bay host to try (default: https://piratebay.party)
 
 ## Contributing
 
