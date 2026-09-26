@@ -31,6 +31,8 @@ _tomato_play() {
         '--preview[peek at the first seconds of an episode]' \
         '--cast[stream the torrent to a Chromecast]' \
         '--dlna[stream the torrent to a DLNA device]' \
+        '--room[host a watch room (shared folder)]' \
+        '--join[follow a watch room host]' \
         '--cache-info[show cache size and entries]' \
         '--clear-cache[wipe the cache]' \
         '--no-cache[disable the cache]' \

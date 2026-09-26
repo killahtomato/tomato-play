@@ -25,6 +25,8 @@ complete -c tp -c tomatoplay -s n -l next -d "Marathon: auto-play the next episo
 complete -c tp -c tomatoplay -l preview -d "Peek at the first seconds of an episode"
 complete -c tp -c tomatoplay -l cast -d "Stream torrent to a Chromecast"
 complete -c tp -c tomatoplay -l dlna -d "Stream torrent to a DLNA device"
+complete -c tp -c tomatoplay -l room -rF -d "Host a watch room (shared folder)"
+complete -c tp -c tomatoplay -l join -rF -d "Follow a watch room host"
 complete -c tp -c tomatoplay -l cache-info -d "Show cache size and entries"
 complete -c tp -c tomatoplay -l clear-cache -d "Wipe the cache"
 complete -c tp -c tomatoplay -l no-cache -d "Disable the cache"

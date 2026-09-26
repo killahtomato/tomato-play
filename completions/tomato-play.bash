@@ -5,7 +5,7 @@ _tomatoplay() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-s --source -c --continue -f --file -T --trending -L --lucky-tomato -d --download -D --delete -H --history --stats --sources -l --logview -q --quality -v --vlc -V --version -h --help -e --episode -r --range -a --audio --dub --rofi --dmenu --no-detach --exit-after-play -n --next --preview --cast --dlna --cache-info --clear-cache --no-cache -U --update"
+    opts="-s --source -c --continue -f --file -T --trending -L --lucky-tomato -d --download -D --delete -H --history --stats --sources -l --logview -q --quality -v --vlc -V --version -h --help -e --episode -r --range -a --audio --dub --rofi --dmenu --no-detach --exit-after-play -n --next --preview --cast --dlna --room --join --cache-info --clear-cache --no-cache -U --update"
 
     case "$prev" in
         -s | --source)

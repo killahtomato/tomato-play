@@ -3,6 +3,17 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.13.0] - 2026-09-27
+
+### Added
+
+- Watch room: `tp --room [DIR]` hosts a shared-folder sync session (two tiny
+  mpv scripts — the host broadcasts position/pause to a state file every 2s;
+  guests run `tp --join [DIR]` and mirror seeks + pause). No extra servers or
+  tools; just a shared folder, NAS, or the same box.
+- Auto-subtitles: when a torrent bundles `.srt/.ass/.vtt` tracks, the matching
+  one is auto-attached to the episode (served straight from the torrent).
+
 ## [1.12.0] - 2026-09-27
 
 ### Added

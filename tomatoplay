@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.12.0"
+version_number="1.13.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -178,6 +178,12 @@ help_info() {
         opening a local player (requires webtorrent-cli).
       --dlna
         Same, but for DLNA renderers/TVs.
+      --room [DIR]
+        Host a watch room: everyone who can see the same file (a shared folder
+        or NAS) stays synced via two tiny mpv scripts. Play as the host, then
+        friends run: tp --join DIR
+      --join [DIR]
+        Follow the host of a watch room: mirrors their file, pauses and seeks.
       --cache-info
         Show where the cache lives, how many entries it has, and its size
       --clear-cache
@@ -846,6 +852,53 @@ torrent_peer_count() {
 _urlencode() {
     printf '%s' "$1" | sed -e 's| |%20|g' -e "s|'|%27|g" -e 's|"|%22|g' -e 's|&|%26|g' \
         -e 's|?|%3F|g' -e 's|#|%23|g' -e 's|(|%28|g' -e 's|)|%29|g' -e 's|!|%21|g' -e 's|\*|%2A|g'
+}
+
+# Watch room: host + guests all play the SAME file (a shared folder, NAS or the
+# same box) and two tiny mpv scripts keep playback in sync. The host's script
+# writes position/pause every 2s to a state file; guests' script polls it and
+# mirrors pauses and seeks. Pure mpv + files, no extra servers or tools.
+room_bootstrap() {
+    [ -n "$room_dir" ] || room_dir="$hist_dir/room"
+    mkdir -p "$room_dir" 2>/dev/null || return 1
+    export TP_ROOM_DIR="$room_dir"
+    if [ ! -f "$room_dir/tp-room-host.lua" ]; then
+        cat >"$room_dir/tp-room-host.lua" <<'LUA'
+local d = os.getenv('TP_ROOM_DIR') or '.'
+local f = d .. '/hoststate'
+local function tick()
+  local pos = mp.get_property_number('time-pos') or 0
+  local paused = mp.get_property_bool('pause') or false
+  local file = mp.get_property('path') or ''
+  local h = io.open(f, 'w')
+  if h then h:write(file .. '\n' .. string.format('%.2f', pos) .. '\n' .. tostring(paused) .. '\n') h:close() end
+end
+mp.add_periodic_timer(2, tick)
+LUA
+    fi
+    if [ ! -f "$room_dir/tp-room-guest.lua" ]; then
+        cat >"$room_dir/tp-room-guest.lua" <<'LUA'
+local d = os.getenv('TP_ROOM_DIR') or '.'
+local f = d .. '/hoststate'
+local function tick()
+  local h = io.open(f, 'r')
+  if not h then return end
+  local file = h:read('*l')
+  local pos = tonumber(h:read('*l') or '0') or 0
+  local paused = h:read('*l') == 'true'
+  h:close()
+  if paused then
+    mp.set_property_bool('pause', true)
+    return
+  end
+  mp.set_property_bool('pause', false)
+  local p = mp.get_property_number('time-pos') or 0
+  if math.abs(p - pos) > 4 then mp.commandv('seek', pos, 'absolute') end
+end
+mp.add_periodic_timer(1, tick)
+LUA
+    fi
+    _room_flag="--script=$room_dir/tp-room-$room_role.lua"
 }
 
 render_torrent_line() {
@@ -1571,6 +1624,10 @@ torrent_stream_one() {
     done
     _ih="$(basename "$_torrent_src" | sed 's|\.torrent$||')"
     _turl="http://127.0.0.1:${_wtport}/webtorrent/${_ih}/$(_urlencode "$_sp")"
+    _subflag=""
+    if [ -n "${5:-}" ]; then
+        _subflag="--sub-file=\"http://127.0.0.1:${_wtport}/webtorrent/${_ih}/$(_urlencode "$5")\""
+    fi
     info "Streaming '$_sl'${_sn:+ (episode $_sn)} — buffering via webtorrent, then opening your player…"
     webtorrent "$_torrent_src" -s "$_si" -p "$_wtport" --quiet &
     _wtpid=$!
@@ -1611,7 +1668,10 @@ torrent_stream_one() {
         case "$player_function" in
             *iina*) open -a IINA "$_turl" ;;
             *vlc*) $player_function --play-and-exit "$_turl" ;;
-            *) $player_function $_rfl $player_extra_flags --force-media-title="$_sl" "$_turl" ;;
+            *)
+                if [ -n "$room_role" ]; then room_bootstrap; else _room_flag=""; fi
+                $player_function $_rfl $player_extra_flags $_room_flag $_subflag --force-media-title="$_sl" "$_turl"
+                ;;
         esac
         _trc=$?
         [ "$_trc" != "0" ] && warn "player exited ($_trc) — grab the magnet instead: ${video_link:-?}"
@@ -1720,6 +1780,12 @@ play_episode() {
                                 printf "%d\t%s\t%s (%s %.2f %s)\n", idx, $1, $2, $3, sz, unit
                             }')"
                     _fcount="$(printf '%s\n' "${_flist:-}" | grep -vc '^$' 2>/dev/null)"
+                    # Bonus: collect any bundled subtitle tracks so we can
+                    # auto-attach the matching one to the pick.
+                    _sublist="$(webtorrent info "$_torrent_file2" 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g' \
+                        | grep -oE '"path": "[^"]*", "name": "[^"]*", "length": [0-9]+' \
+                        | sed -nE 's|"path": "([^"]*)", "name": "([^"]*)", "length": [0-9]+|\1\t\2|p' \
+                        | awk -F'\t' '$2 ~ /\.(srt|ass|ssa|vtt)$/ { printf "%s\t%s\n", $1, $2 }')"
                     if [ "$_fcount" -gt "1" ]; then
                         info "That torrent bundles several files — pick the one to play:"
                         _fchoice="$(printf '%s\n' "$_flist" | nl -w 2 | sed 's/^[[:space:]]//' | nth "Pick a file: ")"
@@ -1751,6 +1817,16 @@ play_episode() {
                     rm -rf "$_td"
                     exit 0
                 fi
+                # Auto-attach a bundled subtitle track that matches the picked
+                # episode (same stem, any of srt/ass/ssa/vtt).
+                _torrent_sub=""
+                if [ -n "${_sublist:-}" ] && [ -n "$_torrent_path" ]; then
+                    _vstem="$(printf '%s' "$_torrent_path" | sed -E 's|.*/||; s|\.[^.]*$||')"
+                    _torrent_sub="$(printf '%s\n' "$_sublist" | awk -F'\t' -v v="$_vstem" '
+                        { n = $2; sub(/\.[^.]*$/, "", n); sub(/^.*\//, "", n)
+                          if (n == v) { print $1; found = 1 } }
+                        END { if (!found) print "" }' | head -n 1)"
+                fi
                 # Serve the picked file(s) with webtorrent (no player flag) and play them
                 # with OUR player — webtorrent's own player spawning is
                 # unreliable. With -n and a multi-file torrent this becomes a
@@ -1766,11 +1842,19 @@ play_episode() {
                             _pack_i="$(printf '%s' "$_pack" | cut -f 1)"
                             _pack_p="$(printf '%s' "$_pack" | cut -f 2)"
                             _pack_l="$(printf '%s' "$_pack_p" | sed 's|.*/||')"
+                            _pack_sub=""
+                            if [ -n "${_sublist:-}" ]; then
+                                _psv="$(printf '%s' "$_pack_p" | sed -E 's|.*/||; s|\.[^.]*$||')"
+                                _pack_sub="$(printf '%s\n' "$_sublist" | awk -F'\t' -v v="$_psv" '
+                                    { n = $2; sub(/\.[^.]*$/, "", n); sub(/^.*\//, "", n)
+                                      if (n == v) { print $1; found = 1 } }
+                                    END { if (!found) print "" }' | head -n 1)"
+                            fi
                             _pack_n=$((_pack_n + 1))
-                            torrent_stream_one "$_pack_i" "$_pack_p" "$_pack_l" "$_pack_n/$_pack_total" || break
+                            torrent_stream_one "$_pack_i" "$_pack_p" "$_pack_l" "$_pack_n/$_pack_total" "$_pack_sub" || break
                         done
                 else
-                    torrent_stream_one "${_torrent_index:-0}" "${_torrent_path:-}" "${_torrent_label}" "" || true
+                    torrent_stream_one "${_torrent_index:-0}" "${_torrent_path:-}" "${_torrent_label}" "" "${_torrent_sub:-}" || true
                 fi
                 rm -rf "$_td"
                 exit 0
@@ -1809,11 +1893,12 @@ play_episode() {
         *mpv*)
             _peek=""
             [ "$preview" = 1 ] && _peek="--length=$preview_len"
+            if [ -n "$room_role" ]; then room_bootstrap; else _room_flag=""; fi
             if [ "$no_detach" = 0 ]; then
-                nohup $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="$_title" "$video_link" >/dev/null 2>&1 &
+                nohup $player_function $player_extra_flags $_room_flag $_hls_flags $_peek $_wl_flags --force-media-title="$_title" "$video_link" >/dev/null 2>&1 &
             else
                 [ "$preview" = 1 ] && info "Peeking for ${preview_len}s — mpv will close itself."
-                $player_function $player_extra_flags $_hls_flags $_peek $_wl_flags --force-media-title="$_title" "$video_link"
+                $player_function $player_extra_flags $_room_flag $_hls_flags $_peek $_wl_flags --force-media-title="$_title" "$video_link"
                 mpv_exitcode=$?
                 [ "$exit_after_play" = 1 ] && [ -z "$_range" ] && exit "$mpv_exitcode"
             fi
@@ -1977,6 +2062,8 @@ auto_next=0
 preview=0
 cont_run=0
 cast_dest=""
+room_dir=""
+room_role=""
 local_path=""
 source_flag=0
 cache_info_check=0
@@ -2058,6 +2145,18 @@ while [ $# -gt 0 ]; do
         --no-detach) no_detach=1 ;;
         --cast) cast_dest="--chromecast" ;;
         --dlna) cast_dest="--dlna" ;;
+        --room)
+            room_role="host"
+            room_dir="${2:-}"
+            [ -n "$room_dir" ] && shift
+            ;;
+        --join)
+            room_role="guest"
+            room_dir="${2:-}"
+            [ -n "$room_dir" ] && shift
+            room_path="${2:-}"
+            [ -n "$room_path" ] && shift
+            ;;
         --exit-after-play) exit_after_play=1 && no_detach=1 ;;
         -n | --next) auto_next=1 && no_detach=1 ;;
         --preview) preview=1 && no_detach=1 ;;
@@ -2085,6 +2184,16 @@ if [ "$source_flag" != 1 ] && [ -n "$query" ]; then
         local_path="$_qpath"
         query=""
     fi
+fi
+
+# Watch room, guest side: follow whatever the host is playing in a shared
+# folder (or the same box). The room scripts + state live in room_dir.
+if [ "$room_role" = "guest" ]; then
+    room_bootstrap || die "Couldn't prepare the room directory."
+    [ -s "$room_dir/hoststate" ] || die "No room session yet — start the host first (tp --room)."
+    local_path="$(head -n 1 "$room_dir/hoststate" 2>/dev/null)"
+    [ -e "$local_path" ] || die "Room file '$local_path' isn't visible here — use a shared folder/NAS."
+    source=files
 fi
 
 # Headless runs (non-tty) fall back to a GUI picker so menus still work while
