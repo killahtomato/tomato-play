@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.8.0"
+version_number="1.9.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -121,7 +121,7 @@ help_info() {
 
     Options:
       -s, --source SOURCE
-        Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili)
+        Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, nyaa)
       -c, --continue
         Continue watching from history, resuming where you left off — no audio or preview prompts (mpv)
       -f, --file [PATH]
@@ -194,6 +194,8 @@ help_info() {
       bilibili     - bilibili.com (legal; geo-restricted outside Asia —
                      use TOMATOPLAY_PROXY / a VPN to an allowed region,
                      and mpv + yt-dlp for playback)
+      nyaa         - nyaa.si torrents; streams via webtorrent-cli (mpv), or
+                     falls back to printing the magnet + saving the .torrent
 
     Some example usages:
       %s -s anidb banana fish
@@ -784,6 +786,43 @@ bilibili_m3u8() {
 }
 
 # ============================================================================
+# Provider: nyaa (anime torrents via nyaa.si)
+#
+# Torrents are a different beast than the streamed sources: picking one hands
+# a magnet to webtorrent-cli (streams straight into mpv), or falls back to a
+# clean handoff (print magnet, copy to clipboard, save the .torrent) when
+# webtorrent-cli isn't installed. Resumption/history apply like any source.
+# ============================================================================
+
+nyaa_base="https://nyaa.si"
+
+nyaa_search() {
+    _page="$(tp_curl "${nyaa_base}/?page=rss&q=$(printf "%s" "$1" | sed 's| |+|g')&c=1_0")" || return 1
+    [ -z "$_page" ] && return 1
+    printf "%s" "$_page" | tr '\n' ' ' | sed 's|<item>|\n<item>|g' \
+        | sed -nE 's|.*<title>([^<]*)</title>.*<guid[^>]*>https://nyaa\.si/view/([0-9]+)</guid>.*|\2\t\1|p' \
+        | sed -e 's|&amp;|\&|g' -e 's|&#34;|"|g' -e "s|&#39;|'|g" \
+        | sed 's|$| [torrent]|' \
+        | grep -v '^[[:space:]]*$' | head -n 15
+}
+
+nyaa_episodes() {
+    printf "1\t1\tEpisode 1\n"
+}
+
+# Resolve a torrent: emit the magnet as the playable link plus the .torrent
+# URL as a sibling line, so playback hands over to webtorrent and the fallback
+# can still grab/save the .torrent file.
+nyaa_m3u8() {
+    _page="$(tp_curl "${nyaa_base}/view/$1")" || return 1
+    _mag="$(printf "%s" "$_page" | tr -d '\n' | grep -oE 'magnet:\?xt=urn:btih:[0-9a-fA-F]{40}[^"<]*' | head -n 1 | sed 's|&amp;|\&|g')"
+    [ -z "$_mag" ] && { _nterr="nyaa couldn't find a magnet for that torrent (it may have been removed)."; return 1; }
+    _dl="$(printf "%s" "$_page" | grep -oE '/download/[0-9]+\.torrent' | head -n 1)"
+    printf "best >%s\n" "$_mag"
+    printf "torrent >%s%s\n" "$nyaa_base" "${_dl:-/download/$1.torrent}"
+}
+
+# ============================================================================
 # Provider Selection
 # ============================================================================
 
@@ -797,11 +836,12 @@ provider_search() {
         anisearch) anisearch_search "$2" ;;
         youtube) youtube_search "$2" ;;
         bilibili) bilibili_search "$2" ;;
+        nyaa) nyaa_search "$2" ;;
         all)
             # Search all providers and combine results (prefixed with provider),
             # streamable sources first so the default selection is playable.
             _results=""
-            for _provider in aniwatch gogoanime 9anime anidb youtube animeplanet anisearch bilibili; do
+            for _provider in aniwatch gogoanime 9anime anidb youtube animeplanet anisearch bilibili nyaa; do
                 [ "$_provider" = "youtube" ] && continue
                 _provider_results="$("${_provider}_search" "$2" 2>/dev/null)"
                 if [ -n "$_provider_results" ]; then
@@ -901,7 +941,12 @@ fuzzy_search() {
     rm -f "$_fs_cands"
     [ -z "$_fs_found" ] && return 0
     printf "%s\n" "$_fs_found" | grep -v '^$' | sort -u | fuzzy_rank "$_fs_query" |
-        sort -t "$(printf '\t')" -k1,1 -nr | cut -f 2- | grep -v '^$' | head -n 10
+        sort -t "$(printf '\t')" -k1,1 -nr | cut -f 2- | grep -v '^$' | awk '
+            # Streaming results first (relevance order), torrents always at the
+            # bottom (also relevance-sorted) so they never hijack the picks.
+            /^nyaa:/ { nt++; if (nt <= 5) t = t $0 "\n"; next }
+            { ns++; if (ns <= 10) s = s $0 "\n" }
+            END { printf "%s%s", s, t }'
 }
 
 provider_episodes() {
@@ -918,6 +963,7 @@ provider_episodes() {
         anisearch) _epi_out="$(anisearch_episodes "$2" 2>/dev/null)" ;;
         youtube) _epi_out="$(youtube_episodes "$2" 2>/dev/null)" ;;
         bilibili) _epi_out="$(bilibili_episodes "$2" 2>/dev/null)" ;;
+        nyaa) _epi_out="$(nyaa_episodes "$2" 2>/dev/null)" ;;
         *) die "Unknown provider: $1" ;;
     esac
     [ -z "$_epi_out" ] && return 1
@@ -972,12 +1018,15 @@ resolve_title() {
     [ -z "$index" ] && result=$(printf "%s" "$anime_list" | nl -w 2 | sed 's/^[[:space:]]//' | nth "Pick a title: ")
     [ -z "$result" ] && die "That pick didn't work out — try again!"
     anime_title="$(printf "%s" "$result" | cut -f 2)"
+    # Torrent rows carry a displayed " [torrent]" marker; drop it from the
+    # real title so history/player titles stay clean.
+    anime_title="${anime_title%' [torrent]'}"
     anime_id="$(printf "%s" "$result" | cut -f 1)"
     if [ "$source" = "all" ]; then
         real_source="${anime_id%%:*}"
         anime_id="${anime_id#*:}"
         case "$real_source" in
-            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube|bilibili) source="$real_source" ;;
+            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube|bilibili|nyaa) source="$real_source" ;;
             *) die "Invalid provider in selection" ;;
         esac
     fi
@@ -1089,7 +1138,7 @@ filter_entries() {
         _check_rid="$(printf '%s\n' "$_check_line" | cut -f 1)"
         _check_p="${_check_rid%%:*}"
         case "$_check_p" in
-            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube|bilibili)
+            anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube|bilibili|nyaa)
                 _check_source="$_check_p"
                 _check_id="${_check_rid#*:}" ;;
             *) _check_source="$source" _check_id="$_check_rid" ;;
@@ -1099,10 +1148,9 @@ filter_entries() {
             _venice="$(provider_episodes "$_check_source" "$_check_id" 2>/dev/null)"
             _vfirst="$(printf '%s\n' "$_venice" | cut -f 1 | head -n 1)"
             if [ -n "$_vfirst" ]; then
-                if [ "$_check_source" = "bilibili" ]; then
-                    # Legal but geo-blocked: skip the stream probe (it would
-                    # fail outside allowed regions) and keep the entry — playback
-                    # later explains the region lock instead of silently dropping.
+                if [ "$_check_source" = "bilibili" ] || [ "$_check_source" = "nyaa" ]; then
+                    # Legal-but-geo-blocked (bilibili) and torrents (nyaa) skip
+                    # the stream probe — keep the entry and let playback explain.
                     printf "%s\n" "$_check_line"
                 elif {
                     provider_m3u8 "$_check_source" "$_check_id" "$_vfirst" sub 2>/dev/null | _probe_playable ||
@@ -1114,13 +1162,19 @@ filter_entries() {
         } 2>/dev/null >"$_fdir/$_jobs" &
         if [ "$_jobs" -ge "5" ]; then
             wait
-            for _f in "$_fdir"/*; do [ -f "$_f" ] && cat "$_f"; done
+            # Collect in numeric order: parallel jobs write numbered files, and
+            # a plain glob would scramble 1,10,11,… and break the sort order.
+            ls "$_fdir" 2>/dev/null | sort -n | while IFS= read -r _fn; do
+                [ -f "$_fdir/$_fn" ] && cat "$_fdir/$_fn"
+            done
             _jobs=0
             rm -f "$_fdir"/*
         fi
     done
     wait
-    for _f in "$_fdir"/*; do [ -f "$_f" ] && cat "$_f"; done
+    ls "$_fdir" 2>/dev/null | sort -n | while IFS= read -r _fn; do
+        [ -f "$_fdir/$_fn" ] && cat "$_fdir/$_fn"
+    done
     rm -rf "$_fdir"
 }
 
@@ -1153,6 +1207,10 @@ _probe_playable() {
 # longer means a silent 20-second mpv hang. Conservative on 403s — some CDNs
 # block curl but still serve the player.
 _stream_alive() {
+    case "$1" in
+        # Magnets have no URL to probe — webtorrent handles discovery at play.
+        magnet:*) return 0 ;;
+    esac
     _code="$(curl -s -o /dev/null --max-time 8 -A "${agent:-Mozilla/5.0}" -w '%{http_code}' "$1" 2>/dev/null)"
     [ $? -ne 0 ] && return 1
     case "$_code" in
@@ -1176,10 +1234,13 @@ provider_m3u8() {
         anisearch) _m3u8_out="$(anisearch_m3u8 "$2" "$3" 2>/dev/null)" ;;
         youtube) _m3u8_out="$(youtube_m3u8 "$2" "$3" 2>/dev/null)" ;;
         bilibili) _m3u8_out="$(bilibili_m3u8 "$2" "$3" 2>/dev/null)" ;;
+        nyaa) _m3u8_out="$(nyaa_m3u8 "$2" 2>/dev/null)" ;;
         *) die "Unknown provider: $1" ;;
     esac
     [ -n "${_bili_err:-}" ] && warn "bilibili brief: $_bili_err"
     _bili_err=""
+    [ -n "${_nterr:-}" ] && warn "nyaa brief: $_nterr"
+    _nterr=""
     [ -z "$_m3u8_out" ] && return 1
     cache_write "$_key" "$_m3u8_out"
     printf "%s\n" "$_m3u8_out"
@@ -1289,7 +1350,7 @@ garden_stats() {
 source_health() {
     printf "\n    \033[1;32mProbing the vine — how ripe are the sources?\033[0m\n"
     printf "    %-14s %-9s %s\n" "source" "search" "playable"
-    for _p in aniwatch gogoanime 9anime anidb animeplanet anisearch youtube bilibili; do
+    for _p in aniwatch gogoanime 9anime anidb animeplanet anisearch youtube bilibili nyaa; do
         _search="no"
         _play="-"
         _r="$(provider_search "$_p" "naruto" 2>/dev/null | head -n 1)"
@@ -1370,6 +1431,67 @@ play_episode() {
     # Local files aren't episodes, so use the plain name as the player title.
     _title="${anime_title} Episode ${ep_no}"
     [ "$source" = "files" ] && _title="$anime_title"
+
+    # Torrents (nyaa): stream straight into the player via webtorrent-cli.
+    # Without it, fall back to a clean handoff — print the magnet, copy it to
+    # the clipboard, and save the .torrent — instead of failing silently.
+    if printf "%s" "$video_link" | grep -q '^magnet:?'; then
+        _torrent_file="$(printf "%s\n" "${links:-}" | grep '^torrent >' | head -n 1 | cut -d'>' -f2-)"
+        _torrent_peers=0
+        if command -v webtorrent >/dev/null 2>&1; then
+            case "$player_function" in
+                *vlc*) _torrent_viewer="--vlc" ;;
+                *iina*) _torrent_viewer="--iina" ;;
+                download) _torrent_viewer="download" ;;
+                debug) printf "Magnet:\n%s\n" "$video_link"; exit 0 ;;
+                *) _torrent_viewer="--mpv" ;;
+            esac
+            # Preflight: bound the peer hunt so a no-seeder torrent fails loudly
+            # instead of hanging forever with nothing on screen. With healthy
+            # seeders, metadata fetch is quick.
+            _td="$(mktemp -d)" || exit 1
+            if cd "$_td" && timeout "${TOMATOPLAY_TORRENT_PEEK:-30}" webtorrent downloadmeta "$video_link" -o . >/dev/null 2>&1; then
+                _torrent_peers=1
+            fi
+            cd /
+            rm -rf "$_td"
+            if [ "$_torrent_peers" = "1" ]; then
+                if [ "$_torrent_viewer" = "download" ]; then
+                    info "Torrenting '$_title' into $download_dir — webtorrent will seed while it grabs it."
+                    webtorrent download "$video_link" -o "$download_dir"
+                    exit 0
+                fi
+                info "Streaming torrent with webtorrent ($_torrent_viewer) — seeders found, first chunks may buffer."
+                if [ "$no_detach" = 0 ]; then
+                    nohup webtorrent "$video_link" "$_torrent_viewer" &
+                else
+                    webtorrent "$video_link" "$_torrent_viewer"
+                fi
+            else
+                warn "No reachable seeders for that torrent (its peers are gone) — handing you the magnet instead."
+            fi
+        fi
+        if [ "$_torrent_peers" != "1" ]; then
+            [ -n "$_torrent_file" ] && {
+                _nt_name="$(printf "%s" "$_title" | tr -c 'A-Za-z0-9._-' '_').torrent"
+                curl -sL -m 30 -A "$agent" "$_torrent_file" -o "$download_dir/$_nt_name" 2>/dev/null \
+                    && info "Saved $download_dir/$_nt_name"
+            }
+            printf "    magnet: %s\n" "$video_link"
+            if command -v xclip >/dev/null 2>&1; then printf "%s" "$video_link" | xclip -selection clipboard; info "Magnet copied to clipboard."
+            elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$video_link" | wl-copy; info "Magnet copied to clipboard."
+            elif command -v pbcopy >/dev/null 2>&1; then printf "%s" "$video_link" | pbcopy; info "Magnet copied to clipboard."
+            fi
+            if ! command -v webtorrent >/dev/null 2>&1; then
+                info "To stream torrents in tp: npm install -g webtorrent-cli  (or open the magnet in your torrent client)."
+            fi
+            exit 0
+        fi
+        replay="$video_link"
+        unset video_link
+        [ "$menu_program" != "fzf" ] && wait
+        return
+    fi
 
     case "$player_function" in
         debug) printf "All links:\n%s\nSelected link:\n%s\n" "$links" "$video_link" ;;
@@ -1489,7 +1611,7 @@ else
 # quality=best # mpv-style quality string
 # player=mpv   # player binary or flatpak path
 # menu=fzf     # fzf, rofi, or dmenu
-# source=all   # all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili
+# source=all   # all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, nyaa
 # download_dir=.
 # log=1        # 1 to log episodes to the system journal
 # cache_ttl=7  # wipe the cache once older than this many days
@@ -1840,6 +1962,7 @@ play
 # Local plays are one-shot: no episode loop, just fire and (optionally) keep
 # the player attached until it finishes.
 [ "$source" = "files" ] && exit 0
+[ "$source" = "nyaa" ] && exit 0
 
 while cmd=$(printf "next\nreplay\nprevious\nselect\nchange_audio\nchange_quality\nquit" | nth "Now showing episode $ep_no of $anime_title — enjoy! ... "); do
     case "$cmd" in

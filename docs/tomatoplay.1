@@ -1,4 +1,4 @@
-.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.8.0" "User Commands"
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.9.0" "User Commands"
 .SH NAME
 tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
 .SH SYNOPSIS
@@ -17,7 +17,14 @@ file playback. Pass an existing file or folder path to play it directly.
 .SH OPTIONS
 .TP
 .B -s, --source SOURCE
-Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili.
+Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, nyaa.
+.TP
+.B nyaa
+Search and play anime torrents from nyaa.si. Streams straight into mpv via
+\fBwebtorrent-cli\fR (install with \fBnpm install -g webtorrent-cli\fR); without
+it, the magnet is printed, copied to the clipboard, and the
+.B .torrent
+saved, so you can open it in any client.
 .TP
 .B -c, --continue
 Continue watching from history, resuming where you left off — no audio or preview prompts (mpv).

@@ -3,6 +3,21 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.9.0] - 2026-09-26
+
+### Added
+
+- New source: `nyaa` — anime torrents from nyaa.si (RSS search). Picking a
+  torrent streams it straight into mpv via `webtorrent-cli` when installed;
+  otherwise it gracefully hands off instead of failing silently — prints the
+  magnet, copies it to the clipboard, and saves the `.torrent` into
+  `download_dir`. `-d` torrent-downloads via webtorrent. Nyaa results are
+  never silently dropped by the `all`-mode playability filter.
+- Torrent playback preflights for seeders (`webtorrent downloadmeta`, bounded
+  by `TOMATOPLAY_TORRENT_PEEK`, default 30s): a dead/no-seeder torrent
+  reports "no reachable seeders" and hands you the magnet instead of hanging
+  with nothing on screen, and webtorrent's own progress stays visible.
+
 ## [1.8.0] - 2026-09-26
 
 ### Added
