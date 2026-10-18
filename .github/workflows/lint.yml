@@ -16,4 +16,9 @@ jobs:
         # findings are expected and non-blocking here.
         run: |
           shellcheck --version
-          shellcheck --shell=sh --severity=error tomatoplay
+          shellcheck --shell=sh --severity=error tomatoplay install.sh core/*.sh providers/*.sh tests/*.sh
+      - name: Run offline checks
+        run: |
+          for test_script in tests/*.sh; do
+            sh "$test_script"
+          done

@@ -37,6 +37,8 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 | midnightpulp | midnightpulp.com | Movies/TV | Planned |
 | youtube | youtube.com | General video | Full |
 | bilibili | bilibili.com | Anime (legal) | Full (geo-restricted outside Asia; use `TOMATOPLAY_PROXY`/VPN)
+| miruro | miruro.to | Anime | Full (via a community-maintained API; requires `jq`)
+| animegg | animegg.org | Anime | MP4 extraction with Waterfox fallback
 | nyaa | nyaa.si | Anime torrents | Full (stream via `webtorrent-cli`, or magnet/.torrent handoff) |
 | tpb | thepiratebay mirrors | Torrents (general) | Full (seeder counts in list; stream via webtorrent/magnet) |
 
@@ -49,6 +51,16 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 >   the encrypted VidNest embed into a direct HLS URL, which mpv streams natively.
 > - `all` mode defaults to the first playable source (aniwatch), then gogoanime,
 >   9anime, and anidb (when it recovers).
+> - Miruro uses a community-maintained API for its catalog, episodes, and
+>   stream links. It can change independently of Miruro; set
+>   `TOMATOPLAY_MIRURO_API` (or `miruro_api` in the config file) to use another
+>   compatible endpoint. If mpv cannot play a non-torrent source, Tomato Play
+>   opens its page or media URL in Waterfox kiosk mode using a separate
+>   Tomato Play profile, leaving your regular profile untouched.
+>   Miruro opens its episode page so the site can initialize its player.
+>   AnimeGG resolves the embedded MP4 for mpv and opens the site player in
+>   Waterfox if extraction or direct playback fails.
+>   Waterfox must be installed for this fallback.
 
 ## Installation
 
@@ -57,10 +69,14 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 ```bash
 git clone https://github.com/killahtomato/tomato-play.git
 cd tomato-play
-# Run the installer (installs tomatoplay and the tp alias)
+# Run the installer (installs tomatoplay, its modules, and the tp alias)
 sudo ./install.sh
 # Or manually:
 # sudo install -m755 tomatoplay /usr/local/bin/tomatoplay
+# sudo install -d /usr/local/lib/tomato-play/providers
+# sudo install -m644 providers/*.sh /usr/local/lib/tomato-play/providers/
+# sudo install -d /usr/local/lib/tomato-play/core
+# sudo install -m644 core/*.sh /usr/local/lib/tomato-play/core/
 # sudo ln -sf tomatoplay /usr/local/bin/tp
 ```
 
@@ -70,6 +86,7 @@ Set `PREFIX` to install elsewhere (defaults to `/usr/local`):
 ### Dependencies
 
 - `grep`, `sed`, `curl`
+- `jq` (for the Miruro source)
 - `mpv` or `vlc` (video player)
 - `yt-dlp` or `ffmpeg` (for downloads)
 - `fzf` (interactive menu)
@@ -134,8 +151,12 @@ tp -h
 ## Options
 
 ```
--s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, nyaa)
+-s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, nyaa, tpb)
 TOMATOPLAY_PROXY       Route requests through a proxy (e.g. socks5h://127.0.0.1:1080); needed for bilibili outside Asia
+TOMATOPLAY_MIRURO_API  Override the community Miruro API base URL
+TOMATOPLAY_MIRURO_REFERER  Override the Referer/Origin used for Miruro stream requests
+TOMATOPLAY_MIRURO_SITE  Override the Miruro site domain used by the Waterfox fallback
+TOMATOPLAY_WATERFOX_PROFILE  Override the dedicated Waterfox profile directory
 -c, --continue         Continue watching from history
 -f, --file [PATH]      Play media from a local file or folder (offline)
 -T, --trending         Browse what's popular right now

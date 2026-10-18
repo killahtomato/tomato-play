@@ -15,9 +15,24 @@ download support, and a watch history. Run without arguments to get a home
 menu: search, continue watching, history, trending, a surprise pick, or local
 file playback. Pass an existing file or folder path to play it directly.
 .SH OPTIONS
+.PP
+If mpv cannot play a non-torrent source, Tomato Play opens its page or media
+URL in Waterfox kiosk mode using a separate Tomato Play profile, when Waterfox
+is installed. This leaves the regular Waterfox profile untouched. Set
+TOMATOPLAY_WATERFOX_PROFILE to override the profile directory.
+Torrent playback keeps its own player path.
 .TP
 .B -s, --source SOURCE
-Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, nyaa, tpb.
+Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, nyaa, tpb.
+.TP
+.B miruro
+Search Miruro's catalog and try direct streams. If mpv cannot open a stream,
+open the Miruro episode page in Waterfox when installed.
+.TP
+.B animegg
+Search AnimeGG and select an episode. Tomato Play extracts the episode MP4 for
+mpv, using the selected sub or dub server. If direct playback fails, it opens
+AnimeGG's embedded player in Waterfox.
 .TP
 .B nyaa
 Search and play anime torrents from nyaa.si. Streams straight into mpv via
@@ -62,6 +77,10 @@ ones are working right now. Results are cached.
 Set a proxy (e.g. \fBTOMATOPLAY_PROXY=socks5h://127.0.0.1:1080\fR) applied to
 every provider request. Needed for bilibili outside allowed regions; a system
 VPN works too since curl already follows it.
+.TP
+.B TOMATOPLAY_MIRURO_SITE
+Override the Miruro site base URL used by the Waterfox fallback (default
+Bhttps://www.miruro.toR).
 .TP
 .B -q, --quality
 Specify the video quality.

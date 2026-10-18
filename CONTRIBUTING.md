@@ -15,8 +15,8 @@ Thank you for your interest in contributing to Tomato Play!
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Run linter: `shfmt -i 4 -ci -d -w tomatoplay`
-5. Run shellcheck: `shellcheck -s sh -o all -e 2250 tomatoplay`
+4. Format shell files with `shfmt -i 4 -ci -w tomatoplay core/*.sh providers/*.sh`
+5. Run shellcheck: `shellcheck -s sh -o all -e 2250 tomatoplay core/*.sh providers/*.sh`
 6. Test your changes
 7. Commit your changes (`git commit -m 'Add amazing feature'`)
 8. Push to the branch (`git push origin feature/amazing-feature`)
@@ -27,22 +27,30 @@ Thank you for your interest in contributing to Tomato Play!
 - Follow POSIX shell conventions
 - Use 4 spaces for indentation
 - No extra dependencies unless absolutely necessary
-- Keep the script monolithic
+- Keep the CLI entry point and shared helpers in `tomatoplay`.
+- Put extracted core responsibilities in `core/` and provider adapters in
+  `providers/`.
+- Follow [`core/CONTRACT.md`](core/CONTRACT.md) for shared state and core module
+  dependencies.
+- Keep provider-specific functions in `providers/`; these files are sourced
+  into the same POSIX shell process and may use the documented shared state.
 
 ### Adding New Providers
 
 To add a new streaming source:
 
-1. Add the provider functions:
+1. Add the provider functions to the matching `providers/<provider>.sh`
+   module, or to `providers/torrents.sh` for torrent sources:
    - `providername_search()` - Search for content
    - `providername_episodes()` - Get episode list
    - `providername_m3u8()` - Get video URLs
 
-2. Register the provider in `provider_search()`, `provider_episodes()`, and `provider_m3u8()`
+2. Register its supported operations in `providers/dispatch.sh`.
+3. Follow the input, output, and failure rules in `providers/CONTRACT.md`.
 
-3. Update the help text with the new source
+4. Update the help text with the new source
 
-4. Test the provider thoroughly
+5. Test the provider thoroughly
 
 ## Development Setup
 
@@ -54,6 +62,15 @@ chmod +x tomatoplay
 ```
 
 ## Testing
+
+Run all offline checks and the shell linter before submitting changes:
+
+```sh
+for test_script in tests/*.sh; do
+  sh "$test_script"
+done
+shellcheck --shell=sh --severity=error tomatoplay install.sh core/*.sh providers/*.sh tests/*.sh
+```
 
 Test your changes with:
 

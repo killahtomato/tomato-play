@@ -1,6 +1,6 @@
 #!/bin/sh
 # Tomato Play installer
-# Installs `tomatoplay` (and `tp` alias) into PREFIX/bin
+# Installs `tomatoplay`, provider modules, and the `tp` alias under PREFIX
 set -e
 
 PREFIX="${PREFIX:-/usr/local}"
@@ -11,6 +11,10 @@ if [ ! -f ./tomatoplay ]; then
 fi
 
 install -Dm755 ./tomatoplay "${PREFIX}/bin/tomatoplay"
+install -d "${PREFIX}/lib/tomato-play/providers"
+install -m644 ./providers/*.sh "${PREFIX}/lib/tomato-play/providers/"
+install -d "${PREFIX}/lib/tomato-play/core"
+install -m644 ./core/*.sh "${PREFIX}/lib/tomato-play/core/"
 ln -sf tomatoplay "${PREFIX}/bin/tp"
 
 if [ -d ./completions ]; then
