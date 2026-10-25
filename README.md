@@ -39,6 +39,7 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 | bilibili | bilibili.com | Anime (legal) | Full (geo-restricted outside Asia; use `TOMATOPLAY_PROXY`/VPN)
 | miruro | miruro.to | Anime | Full (via a community-maintained API; requires `jq`)
 | animegg | animegg.org | Anime | MP4 extraction with Waterfox fallback
+| hianime | hianime.at | Anime | Full (HiAnime backend, auto-subs; override with `TOMATOPLAY_HIANIME_BASE`) |
 | nyaa | nyaa.si | Anime torrents | Full (stream via `webtorrent-cli`, or magnet/.torrent handoff) |
 | tpb | thepiratebay mirrors | Torrents (general) | Full (seeder counts in list; stream via webtorrent/magnet) |
 
@@ -151,7 +152,7 @@ tp -h
 ## Options
 
 ```
--s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, nyaa, tpb)
+-s, --source SOURCE    Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, hianime, nyaa, tpb)
 TOMATOPLAY_PROXY       Route requests through a proxy (e.g. socks5h://127.0.0.1:1080); needed for bilibili outside Asia
 TOMATOPLAY_MIRURO_API  Override the community Miruro API base URL
 TOMATOPLAY_MIRURO_REFERER  Override the Referer/Origin used for Miruro stream requests
@@ -216,6 +217,7 @@ Environment variables:
 - `TOMATOPLAY_TORRENT_PEEK` - Seconds to hunt for torrent seeders before bailing (default: 30)
 - `TOMATOPLAY_TORRENT_LIST_PEEK` - Seconds per torrent when listing live peer counts (default: 8)
 - `TOMATOPLAY_TPB_BASE` - First Pirate Bay host to try (default: https://piratebay.party)
+- `TOMATOPLAY_HIANIME_BASE` - First HiAnime host to try (default: https://hianime.at)
 - `TOMATOPLAY_ANILIST_TOKEN` - AniList API token; when set, watched episodes are scrobbled to your AniList after playback
 
 ## Contributing

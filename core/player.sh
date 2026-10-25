@@ -88,6 +88,15 @@ launch_player() {
                     --http-header-fields="Origin: $_animegg_origin" \
                     --force-media-title="$_title" "$video_link"
                 mpv_exitcode=$?
+            elif [ "$source" = "hianime" ]; then
+                _hianime_origin=${_hianime_referrer%/}
+                _hianime_sub_flag=""
+                [ -n "$_hianime_sub" ] && _hianime_sub_flag="--sub-file=$_hianime_sub"
+                flatpak run io.mpv.Mpv $player_extra_flags $_hianime_sub_flag \
+                    --user-agent="$agent" --referrer="$_hianime_referrer" \
+                    --http-header-fields="Origin: $_hianime_origin" \
+                    --force-media-title="$_title" "$video_link"
+                mpv_exitcode=$?
             else
                 flatpak run io.mpv.Mpv $player_extra_flags $_bili_proxy_flag $_hls_flags $_wl_flags --force-media-title="$_title" "$video_link"
                 mpv_exitcode=$?
@@ -106,6 +115,15 @@ launch_player() {
                 $player_function $player_extra_flags $_room_flag $_animegg_media_flag \
                     --user-agent="$agent" --referrer="$_animegg_referrer" \
                     --http-header-fields="Origin: $_animegg_origin" \
+                    --force-media-title="$_title" "$video_link"
+                mpv_exitcode=$?
+            elif [ "$source" = "hianime" ]; then
+                _hianime_origin=${_hianime_referrer%/}
+                _hianime_sub_flag=""
+                [ -n "$_hianime_sub" ] && _hianime_sub_flag="--sub-file=$_hianime_sub"
+                $player_function $player_extra_flags $_room_flag $_hianime_sub_flag \
+                    --user-agent="$agent" --referrer="$_hianime_referrer" \
+                    --http-header-fields="Origin: $_hianime_origin" \
                     --force-media-title="$_title" "$video_link"
                 mpv_exitcode=$?
             else

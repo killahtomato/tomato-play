@@ -7,7 +7,7 @@ _provider_adapter() {
     case "$1" in
         9anime) printf 'nineanime_%s' "$2" ;;
         anidb | aniwatch | gogoanime | animeplanet | anisearch | youtube | \
-        bilibili | miruro | animegg | nyaa | tpb)
+        bilibili | miruro | animegg | nyaa | tpb | hianime)
             printf '%s_%s' "$1" "$2"
             ;;
         *) return 1 ;;
@@ -28,7 +28,7 @@ provider_search() {
     case "$_provider" in
         all)
             _results=""
-            for _source in aniwatch gogoanime 9anime anidb youtube animeplanet anisearch bilibili miruro animegg nyaa tpb; do
+            for _source in aniwatch gogoanime 9anime anidb youtube animeplanet anisearch bilibili miruro animegg hianime nyaa tpb; do
                 [ "$_source" = "youtube" ] && continue
                 _source_results="$(provider_search "$_source" "$_query" 2>/dev/null)"
                 if [ -n "$_source_results" ]; then
@@ -106,6 +106,7 @@ provider_m3u8() {
 provider_audio_modes() {
     case "$1" in
         aniwatch) aniwatch_modes "$2" "$3" ;;
+        hianime) hianime_audio_modes "$2" "$3" ;;
         *) return 1 ;;
     esac
 }
@@ -146,7 +147,7 @@ provider_is_direct_stream() {
     for _provider_base in "$aniwatch_base" "$gogoanime_base" "$nineanime_base" \
         "$anidb_base" "$animeplanet_base" "$anisearch_base" \
         "https://www.miruro.to" "https://api.hiyori.tv" \
-        "${animegg_base:-https://www.animegg.org}"; do
+        "${animegg_base:-https://www.animegg.org}" "${hianime_base:-https://hianime.at}"; do
         [ -n "$_provider_base" ] || continue
         case "$_candidate_url" in
             "$_provider_base"*) return 1 ;;

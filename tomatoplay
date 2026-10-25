@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version_number="1.13.0"
+version_number="1.14.0"
 
 # ============================================================================
 # Tomato Play - A CLI tool to browse and watch anime, movies, and TV series
@@ -94,7 +94,7 @@ help_info() {
 
     Options:
       -s, --source SOURCE
-        Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, nyaa, tpb)
+        Specify source (all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, hianime, nyaa, tpb)
       -c, --continue
         Continue watching from history, resuming where you left off — no audio or preview prompts (mpv)
       -f, --file [PATH]
@@ -285,7 +285,7 @@ else
     provider_dir="$script_dir/../lib/tomato-play/providers"
     core_dir="$script_dir/../lib/tomato-play/core"
 fi
-for _provider_module in anidb.sh aniwatch.sh gogoanime.sh nineanime.sh animeplanet.sh anisearch.sh youtube.sh bilibili.sh animegg.sh torrents.sh miruro.sh dispatch.sh; do
+for _provider_module in anidb.sh aniwatch.sh gogoanime.sh nineanime.sh animeplanet.sh anisearch.sh youtube.sh bilibili.sh animegg.sh torrents.sh miruro.sh hianime.sh dispatch.sh; do
     [ -r "$provider_dir/$_provider_module" ] || die "Provider module not found: $provider_dir/$_provider_module"
     . "$provider_dir/$_provider_module"
 done
@@ -451,7 +451,7 @@ pick_lucky_show() {
 source_health() {
     printf "\n    \033[1;32mProbing the vine — how ripe are the sources?\033[0m\n"
     printf "    %-14s %-9s %s\n" "source" "search" "playable"
-for _p in aniwatch gogoanime 9anime anidb animeplanet anisearch youtube bilibili miruro animegg nyaa tpb; do
+for _p in aniwatch gogoanime 9anime anidb animeplanet anisearch youtube bilibili miruro animegg hianime nyaa tpb; do
         _search="no"
         _play="-"
         _r="$(provider_search "$_p" "naruto" 2>/dev/null | head -n 1)"
@@ -529,7 +529,7 @@ else
 # quality=best # mpv-style quality string
 # player=mpv   # player binary or flatpak path
 # menu=fzf     # fzf, rofi, or dmenu
-# source=all   # all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, nyaa, tpb
+# source=all   # all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, hianime, nyaa, tpb
 # miruro_api=https://api.hiyori.tv # community Miruro API endpoint
 # download_dir=.
 # log=1        # 1 to log episodes to the system journal

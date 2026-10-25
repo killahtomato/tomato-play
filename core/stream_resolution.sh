@@ -124,6 +124,11 @@ _stream_candidate_alive() {
         _stream_alive "$1" "$_animegg_referrer" "$_animegg_origin"
         return $?
     fi
+    if [ "$source" = "hianime" ]; then
+        [ -n "${_hianime_referrer:-}" ] || return 1
+        _stream_alive "$1" "$_hianime_referrer" "${_hianime_referrer%/}"
+        return $?
+    fi
     if [ "$source" != "miruro" ]; then
         _stream_alive "$1"
         return $?
@@ -163,6 +168,13 @@ get_video_link() {
     info "We found some streams on $source."
     _animegg_referrer=""
     [ "$source" != "animegg" ] || _animegg_referrer=$(animegg_referrer_for_episode "$_episode_key" "$mode")
+    # HiAnime streams need the embed Referer (and may ship a subtitle track).
+    _hianime_referrer=""
+    _hianime_sub=""
+    if [ "$source" = "hianime" ]; then
+        _hianime_referrer="$(hianime_referrer_for_episode "$_episode_key")" || _hianime_referrer=""
+        _hianime_sub="$(hianime_sub_for_episode "$_episode_key")" || _hianime_sub=""
+    fi
     # Prefer the requested quality, otherwise the best one.
     case "$quality" in
         worst) _cand="$(printf "%s\n" "$links" | grep -E '^[0-9]{3,4}' | tail -n 1)" ;;

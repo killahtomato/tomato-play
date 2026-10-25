@@ -3,6 +3,17 @@
 All notable changes to Tomato Play. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.14.0] - 2026-09-27
+
+### Added
+
+- New source: `hianime` — the HiAnime backend (`hianime.at`, overridable with
+  `TOMATOPLAY_HIANIME_BASE`), the same source ani-cli relies on. Handles
+  server selection, the base64/XOR `otaku-embed-v1` deobfuscation, quality
+  variants, bundled subtitles, and the embed Referer the HLS CDN requires.
+  With aniwatch's API down, this restores real anime streams to `all`-mode
+  searches.
+
 ## [1.13.0] - 2026-09-27
 
 ### Added

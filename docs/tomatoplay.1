@@ -1,4 +1,4 @@
-.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.13.0" "User Commands"
+.TH TOMATOPLAY 1 "September 2026" "tomatoplay 1.14.0" "User Commands"
 .SH NAME
 tomatoplay, tp \- browse and watch anime, movies, and TV series from multiple sources
 .SH SYNOPSIS
@@ -23,7 +23,7 @@ TOMATOPLAY_WATERFOX_PROFILE to override the profile directory.
 Torrent playback keeps its own player path.
 .TP
 .B -s, --source SOURCE
-Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, nyaa, tpb.
+Specify source: all, anidb, aniwatch, gogoanime, 9anime, animeplanet, anisearch, youtube, bilibili, miruro, animegg, hianime, nyaa, tpb.
 .TP
 .B miruro
 Search Miruro's catalog and try direct streams. If mpv cannot open a stream,
@@ -33,6 +33,11 @@ open the Miruro episode page in Waterfox when installed.
 Search AnimeGG and select an episode. Tomato Play extracts the episode MP4 for
 mpv, using the selected sub or dub server. If direct playback fails, it opens
 AnimeGG's embedded player in Waterfox.
+.TP
+.B hianime
+Search and play anime via the HiAnime backend (\fBhianime.at\fR, overridable
+with \fBTOMATOPLAY_HIANIME_BASE\fR). Subbed/dubbed servers, bundled subtitles,
+and the embed Referer are handled automatically.
 .TP
 .B nyaa
 Search and play anime torrents from nyaa.si. Streams straight into mpv via

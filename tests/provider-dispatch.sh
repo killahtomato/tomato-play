@@ -26,6 +26,7 @@ anisearch_search() { :; }
 bilibili_search() { :; }
 miruro_search() { printf '20\tMiruro %s\n' "$1"; }
 animegg_search() { printf 'naruto\tAnimeGG %s\n' "$1"; }
+hianime_search() { printf 'hi-1\tHiAnime %s\n' "$1"; }
 nyaa_search() { printf 'nyaa-1\tTorrent result\t20\t3\n'; }
 tpb_search() { :; }
 
@@ -68,7 +69,7 @@ assert_status() {
 assert_eq "$(printf 'aw-1\tquery words')" "$(provider_search aniwatch 'query words')" 'provider search output and query argument'
 assert_eq "$(printf 'nine-1\tquery')" "$(provider_search 9anime query)" 'legacy 9anime slug maps to its adapter prefix'
 
-_expected_all=$(printf 'aniwatch:aw-1\tquery\n9anime:nine-1\tquery\nanidb:db-1\tAniDB result\nmiruro:20\tMiruro query\nanimegg:naruto\tAnimeGG query\nnyaa:nyaa-1\tTorrent result\t20\t3')
+_expected_all=$(printf 'aniwatch:aw-1\tquery\n9anime:nine-1\tquery\nanidb:db-1\tAniDB result\nmiruro:20\tMiruro query\nanimegg:naruto\tAnimeGG query\nhianime:hi-1\tHiAnime query\nnyaa:nyaa-1\tTorrent result\t20\t3')
 assert_eq "$_expected_all" "$(provider_search all query)" 'all search source prefixes and extra torrent columns'
 
 assert_eq "$(printf 'provider-episode-42\t7\tanime-9')" "$(provider_episodes anidb anime-9)" 'episode row schema and content ID argument'
