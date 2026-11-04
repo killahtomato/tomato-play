@@ -20,5 +20,5 @@ jobs:
       - name: Run offline checks
         run: |
           for test_script in tests/*.sh; do
-            sh "$test_script"
+            bash "$test_script"
           done
