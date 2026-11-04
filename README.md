@@ -21,7 +21,7 @@ A CLI tool to browse and watch anime, movies, and TV series from multiple source
 - Quality selection
 - Download support
 - Watch history
-- Syncplay support for watching with friends
+- Shared-folder watch rooms for watching with friends
 
 ## Supported Sources
 
