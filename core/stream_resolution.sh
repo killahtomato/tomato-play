@@ -172,8 +172,8 @@ get_video_link() {
     _hianime_referrer=""
     _hianime_sub=""
     if [ "$source" = "hianime" ]; then
-        _hianime_referrer="$(hianime_referrer_for_episode "$_episode_key")" || _hianime_referrer=""
-        _hianime_sub="$(hianime_sub_for_episode "$_episode_key")" || _hianime_sub=""
+        _hianime_referrer="$(hianime_referrer_for_episode "$_episode_key" "$mode")" || _hianime_referrer=""
+        _hianime_sub="$(hianime_sub_for_episode "$_episode_key" "$mode")" || _hianime_sub=""
     fi
     # Prefer the requested quality, otherwise the best one.
     case "$quality" in

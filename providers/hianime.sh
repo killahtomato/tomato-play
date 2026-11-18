@@ -40,9 +40,10 @@ hianime_episodes() {
 
 # Resolve the ZokoAnime embed for an episode id and print the deobfuscated JSON.
 hianime_embed_json() {
+    _hij_mode="${2:-sub}"
     _hij_srv="$(tp_curl "${hianime_base}/api/theme/episode/servers?episodeId=$1" | sed 's|\\"|"|g; s|server-item|\nserver-item|g')"
     [ -z "$_hij_srv" ] && return 1
-    _hij_hash="$(printf "%s" "$_hij_srv" | sed -nE 's|.*data-type="sub".*data-server-name="ZokoAnime".*data-hash="([^"]*)".*|\1|p' | head -n 1)"
+    _hij_hash="$(printf "%s" "$_hij_srv" | sed -nE "s|.*data-type=\"${_hij_mode}\".*data-server-name=\"ZokoAnime\".*data-hash=\"([^\"]*)\".*|\1|p" | head -n 1)"
     [ -z "$_hij_hash" ] && return 1
     _hij_embed="$(printf "%s" "$_hij_hash" | base64 -d 2>/dev/null)"
     [ -z "$_hij_embed" ] && return 1
@@ -53,9 +54,10 @@ hianime_embed_json() {
 
 # The embed host origin, sent as Referer/Origin so the HLS CDN serves.
 hianime_referrer_for_episode() {
+    _hrf_mode="${2:-sub}"
     _hrf_srv="$(tp_curl "${hianime_base}/api/theme/episode/servers?episodeId=$1" | sed 's|\\"|"|g; s|server-item|\nserver-item|g')"
     [ -z "$_hrf_srv" ] && return 1
-    _hrf_hash="$(printf "%s" "$_hrf_srv" | sed -nE 's|.*data-type="sub".*data-server-name="ZokoAnime".*data-hash="([^"]*)".*|\1|p' | head -n 1)"
+    _hrf_hash="$(printf "%s" "$_hrf_srv" | sed -nE "s|.*data-type=\"${_hrf_mode}\".*data-server-name=\"ZokoAnime\".*data-hash=\"([^\"]*)\".*|\1|p" | head -n 1)"
     [ -z "$_hrf_hash" ] && return 1
     _hrf_embed="$(printf "%s" "$_hrf_hash" | base64 -d 2>/dev/null)"
     [ -z "$_hrf_embed" ] && return 1
@@ -64,16 +66,16 @@ hianime_referrer_for_episode() {
 
 # Bundled default subtitle track, if the episode ships one.
 hianime_sub_for_episode() {
-    _hsf_json="$(hianime_embed_json "$1")" || return 1
+    _hsf_json="$(hianime_embed_json "$1" "${2:-sub}")" || return 1
     printf '%s' "$_hsf_json" | sed 's|.*"subtitles":\[||; s|\].*||; s|},{|}\n{|g' \
         | grep -m1 '"default":true' | sed -nE 's|.*"src":"([^"]*)".*|\1|p'
 }
 
 hianime_m3u8() {
-    _hjm_json="$(hianime_embed_json "$2")" || return 1
+    _hjm_json="$(hianime_embed_json "$2" "$3")" || return 1
     _hjm_master="$(printf "%s" "$_hjm_json" | sed -nE 's|.*"src":"([^"]+\.m3u8[^"]*)".*|\1|p' | head -n 1)"
     [ -z "$_hjm_master" ] && return 1
-    _hjm_referer="$(hianime_referrer_for_episode "$2")"
+    _hjm_referer="$(hianime_referrer_for_episode "$2" "$3")"
     [ -z "$_hjm_referer" ] && return 1
     # Master playlist lists relative quality variants; fetch it with the referer.
     _hjm_body="$($curl_exe -sL -A "$agent" --max-time 15 $cipher_flag $_px_flag -e "$_hjm_referer" "$_hjm_master" 2>/dev/null)" || return 1

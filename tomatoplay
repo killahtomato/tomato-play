@@ -522,8 +522,8 @@ json_resolve() {
             _jv_origin="${animegg_base:-https://www.animegg.org}"
             ;;
         hianime)
-            _jv_ref="$(hianime_referrer_for_episode "$_jv_ep" 2>/dev/null)" || _jv_ref=""
-            _jv_sub="$(hianime_sub_for_episode "$_jv_ep" 2>/dev/null)" || _jv_sub=""
+            _jv_ref="$(hianime_referrer_for_episode "$_jv_ep" "$_jv_mode" 2>/dev/null)" || _jv_ref=""
+            _jv_sub="$(hianime_sub_for_episode "$_jv_ep" "$_jv_mode" 2>/dev/null)" || _jv_sub=""
             _jv_origin="${_jv_ref%/}"
             ;;
         miruro)
@@ -616,7 +616,7 @@ _json_entry_playable() {
         _animegg_referrer=""
         [ "$_jep_src" != animegg ] || _animegg_referrer="$(animegg_referrer_for_episode "$_jep_key" "$_jep_mode" 2>/dev/null)" || _animegg_referrer=""
         _hianime_referrer=""
-        [ "$_jep_src" != hianime ] || _hianime_referrer="$(hianime_referrer_for_episode "$_jep_key" 2>/dev/null)" || _hianime_referrer=""
+        [ "$_jep_src" != hianime ] || _hianime_referrer="$(hianime_referrer_for_episode "$_jep_key" "$_jep_mode" 2>/dev/null)" || _hianime_referrer=""
         _jep_tmp="$(mktemp)" || return 1
         printf '%s\n' "$_jep_links" >"$_jep_tmp"
         _jep_found=0
