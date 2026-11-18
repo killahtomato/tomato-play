@@ -550,7 +550,7 @@ json_resolve() {
             _jv_playable="true"
         fi
         _jv_obj="{\"quality\":\"$(json_escape "$_jv_q")\",\"url\":\"$(json_escape "$_jv_url")\",\"type\":\"$_jv_type\",\"playable\":$_jv_playable"
-        [ -n "$_jv_ref" ] && _jv_obj="$_jv_obj,\"referrer\":\"$(json_escape "$_jv_ref")\",\"origin\":\"$(json_escape "$_jv_origin")"
+        [ -n "$_jv_ref" ] && _jv_obj="$_jv_obj,\"referrer\":\"$(json_escape "$_jv_ref")\",\"origin\":\"$(json_escape "$_jv_origin")\""
         _jv_obj="$_jv_obj}"
         _jv_body="$_jv_body$_jv_obj,"
     done <"$_jv_tmp"
