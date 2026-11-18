@@ -608,9 +608,6 @@ _json_entry_playable() {
     _jep_eps="$(provider_episodes "$_jep_src" "$_jep_id" 2>/dev/null)" || return 1
     _jep_key="$(printf '%s\n' "$_jep_eps" | cut -f 1 | head -n 1)"
     [ -n "$_jep_key" ] || return 1
-    case "$_jep_src" in
-        nyaa | tpb | bilibili) return 0 ;;
-    esac
     source="$_jep_src"
     _jep_mode
     for _jep_mode in sub dub; do
@@ -625,8 +622,12 @@ _json_entry_playable() {
         _jep_found=0
         while IFS= read -r _jep_line; do
             [ -n "$_jep_line" ] || continue
+            _jep_url="${_jep_line#*>}"
+            case "$_jep_url" in
+                magnet:* | *.torrent | *.torrent\?*) continue ;;
+            esac
             printf '%s\n' "$_jep_line" | _probe_playable >/dev/null 2>&1 || continue
-            if _stream_candidate_alive "${_jep_line#*>}"; then
+            if _stream_candidate_alive "$_jep_url"; then
                 _jep_found=1
                 break
             fi
@@ -660,7 +661,7 @@ json_probe() {
                 printf '%s\t%s\t%s\n' "$_jpr_row_source" "$_jpr_row_id" "$_jpr_title"
             fi
         } 2>/dev/null >"$_jpr_dir/$_jpr_seq" &
-        if [ "$_jpr_batch" -ge 5 ]; then
+        if [ "$_jpr_batch" -ge 10 ]; then
             wait
             _jpr_batch=0
         fi
