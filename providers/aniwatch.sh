@@ -36,7 +36,7 @@ aniwatch_episodes() {
     if [ -n "$_ep1" ]; then
         _epage="$(tp_curl "${aniwatch_base}${_ep1}")" || return 1
         if [ -n "$_epage" ]; then
-            printf "%s" "$_epage" | awk '
+            _rows="$(printf "%s" "$_epage" | awk '
                 BEGIN { RS="<a"; FS="\n" }
                 /ws-ep/ {
                     ep=""; title=""
@@ -46,8 +46,11 @@ aniwatch_episodes() {
                     }
                     if (ep != "") print ep "\t" ep "\t" (title == "" ? "Episode " ep : title)
                 }
-            ' | sort -g -t "$(printf '\t')" -k1,1 -u
-            return 0
+            ' | sort -g -t "$(printf '\t')" -k1,1 -u)"
+            if [ -n "$_rows" ]; then
+                printf '%s\n' "$_rows"
+                return 0
+            fi
         fi
     fi
     printf "%s" "$_page" | grep -oE '/episode/[a-z0-9-]+' | sed -n '/-'"$_hash"'$/p' | sed -nE 's|^/episode/.*-([0-9]+)-[a-z0-9-]+$|\1\t\1\tEpisode \1|p' | sort -g -u
