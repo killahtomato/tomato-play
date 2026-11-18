@@ -599,15 +599,53 @@ json_trending() {
     printf '{"ok":true,"version":1,"results":[%s]}\n' "$_jt_body"
 }
 
+# True when a result's first episode resolves to at least one stream that is
+# both directly playable and actually reachable. Mirrors the CLI's
+# filter_entries intent but verifies the stream instead of trusting its shape.
+_json_entry_playable() {
+    _jep_src="$1"
+    _jep_id="$2"
+    _jep_eps="$(provider_episodes "$_jep_src" "$_jep_id" 2>/dev/null)" || return 1
+    _jep_key="$(printf '%s\n' "$_jep_eps" | cut -f 1 | head -n 1)"
+    [ -n "$_jep_key" ] || return 1
+    case "$_jep_src" in
+        nyaa | tpb | bilibili) return 0 ;;
+    esac
+    source="$_jep_src"
+    _jep_mode
+    for _jep_mode in sub dub; do
+        _jep_links="$(provider_m3u8 "$_jep_src" "$_jep_id" "$_jep_key" "$_jep_mode" 2>/dev/null)" || continue
+        [ -n "$_jep_links" ] || continue
+        _animegg_referrer=""
+        [ "$_jep_src" != animegg ] || _animegg_referrer="$(animegg_referrer_for_episode "$_jep_key" "$_jep_mode" 2>/dev/null)" || _animegg_referrer=""
+        _hianime_referrer=""
+        [ "$_jep_src" != hianime ] || _hianime_referrer="$(hianime_referrer_for_episode "$_jep_key" 2>/dev/null)" || _hianime_referrer=""
+        _jep_tmp="$(mktemp)" || return 1
+        printf '%s\n' "$_jep_links" >"$_jep_tmp"
+        _jep_found=0
+        while IFS= read -r _jep_line; do
+            [ -n "$_jep_line" ] || continue
+            printf '%s\n' "$_jep_line" | _probe_playable >/dev/null 2>&1 || continue
+            if _stream_candidate_alive "${_jep_line#*>}"; then
+                _jep_found=1
+                break
+            fi
+        done <"$_jep_tmp"
+        rm -f "$_jep_tmp"
+        [ "$_jep_found" = 1 ] && return 0
+    done
+    return 1
+}
+
 json_probe() {
     _jpr_source="${1:-all}"
     _jpr_input="$(cat)"
     [ -n "$(printf '%s' "$_jpr_input" | tr -d '[:space:]')" ] || { json_error probe "no input"; return 1; }
-    _jpr_out="$(printf '%s\n' "$_jpr_input" | filter_entries "$_jpr_source" 2>/dev/null)"
-    [ -n "$_jpr_out" ] || { json_error probe "no playable results"; return 1; }
-    _jpr_tmp="$(mktemp)" || { json_error probe "temporary file unavailable"; return 1; }
-    printf '%s\n' "$_jpr_out" >"$_jpr_tmp"
-    _jpr_body=""
+    _jpr_infile="$(mktemp)" || { json_error probe "temporary file unavailable"; return 1; }
+    printf '%s\n' "$_jpr_input" >"$_jpr_infile"
+    _jpr_dir="$(mktemp -d)" || { rm -f "$_jpr_infile"; json_error probe "temporary directory unavailable"; return 1; }
+    _jpr_seq=0
+    _jpr_batch=0
     while IFS="$(printf '\t')" read -r _jpr_cid _jpr_title; do
         [ -n "$_jpr_cid" ] || continue
         _jpr_row_source="$_jpr_source"
@@ -615,7 +653,29 @@ json_probe() {
         case "$_jpr_cid" in
             *:*) _jpr_row_source="${_jpr_cid%%:*}"; _jpr_row_id="${_jpr_cid#*:}" ;;
         esac
-        _jpr_body="$_jpr_body{\"source\":\"$(json_escape "$_jpr_row_source")\",\"id\":\"$(json_escape "$_jpr_row_id")\",\"title\":\"$(json_escape "$_jpr_title")\"},"
+        _jpr_seq=$((_jpr_seq + 1))
+        _jpr_batch=$((_jpr_batch + 1))
+        {
+            if _json_entry_playable "$_jpr_row_source" "$_jpr_row_id"; then
+                printf '%s\t%s\t%s\n' "$_jpr_row_source" "$_jpr_row_id" "$_jpr_title"
+            fi
+        } 2>/dev/null >"$_jpr_dir/$_jpr_seq" &
+        if [ "$_jpr_batch" -ge 5 ]; then
+            wait
+            _jpr_batch=0
+        fi
+    done <"$_jpr_infile"
+    rm -f "$_jpr_infile"
+    wait
+    _jpr_out="$(ls "$_jpr_dir" 2>/dev/null | sort -n | while IFS= read -r _jpr_fn; do cat "$_jpr_dir/$_jpr_fn"; done)"
+    rm -rf "$_jpr_dir"
+    [ -n "$_jpr_out" ] || { json_error probe "no playable results"; return 1; }
+    _jpr_tmp="$(mktemp)" || { json_error probe "temporary file unavailable"; return 1; }
+    printf '%s\n' "$_jpr_out" >"$_jpr_tmp"
+    _jpr_body=""
+    while IFS="$(printf '\t')" read -r _jpr_rs _jpr_rid _jpr_rt; do
+        [ -n "$_jpr_rs" ] || continue
+        _jpr_body="$_jpr_body{\"source\":\"$(json_escape "$_jpr_rs")\",\"id\":\"$(json_escape "$_jpr_rid")\",\"title\":\"$(json_escape "$_jpr_rt")\"},"
     done <"$_jpr_tmp"
     rm -f "$_jpr_tmp"
     _jpr_body="${_jpr_body%,}"
