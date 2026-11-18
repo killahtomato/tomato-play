@@ -175,7 +175,8 @@ help_info() {
         Machine-readable mode: emit one JSON object on stdout, diagnostics on
         stderr, and skip all interactive prompts. Actions: search QUERY
         [SOURCE], episodes SOURCE ID, resolve SOURCE ID EP MODE,
-        audio-modes SOURCE ID EP, trending.
+        audio-modes SOURCE ID EP, trending. probe reads provider:id<TAB>title
+        rows from stdin and returns only entries with playable streams.
       -U, --update
         Update the script
 
@@ -598,6 +599,29 @@ json_trending() {
     printf '{"ok":true,"version":1,"results":[%s]}\n' "$_jt_body"
 }
 
+json_probe() {
+    _jpr_source="${1:-all}"
+    _jpr_input="$(cat)"
+    [ -n "$(printf '%s' "$_jpr_input" | tr -d '[:space:]')" ] || { json_error probe "no input"; return 1; }
+    _jpr_out="$(printf '%s\n' "$_jpr_input" | filter_entries "$_jpr_source" 2>/dev/null)"
+    [ -n "$_jpr_out" ] || { json_error probe "no playable results"; return 1; }
+    _jpr_tmp="$(mktemp)" || { json_error probe "temporary file unavailable"; return 1; }
+    printf '%s\n' "$_jpr_out" >"$_jpr_tmp"
+    _jpr_body=""
+    while IFS="$(printf '\t')" read -r _jpr_cid _jpr_title; do
+        [ -n "$_jpr_cid" ] || continue
+        _jpr_row_source="$_jpr_source"
+        _jpr_row_id="$_jpr_cid"
+        case "$_jpr_cid" in
+            *:*) _jpr_row_source="${_jpr_cid%%:*}"; _jpr_row_id="${_jpr_cid#*:}" ;;
+        esac
+        _jpr_body="$_jpr_body{\"source\":\"$(json_escape "$_jpr_row_source")\",\"id\":\"$(json_escape "$_jpr_row_id")\",\"title\":\"$(json_escape "$_jpr_title")\"},"
+    done <"$_jpr_tmp"
+    rm -f "$_jpr_tmp"
+    _jpr_body="${_jpr_body%,}"
+    printf '{"ok":true,"version":1,"results":[%s]}\n' "$_jpr_body"
+}
+
 json_dispatch() {
     _jd_action="${1:-}"
     [ -n "$_jd_action" ] || { json_error "" "missing action"; return 1; }
@@ -608,6 +632,7 @@ json_dispatch() {
         resolve) json_resolve "$@" ;;
         audio-modes) json_audio_modes "$@" ;;
         trending) json_trending "$@" ;;
+        probe) json_probe "$@" ;;
         *) json_error "" "unknown action: $_jd_action"; return 1 ;;
     esac
 }

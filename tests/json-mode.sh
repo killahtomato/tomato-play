@@ -53,4 +53,12 @@ case "$_json_out" in
     *) fail "escaping: quote not escaped, got: $_json_out" ;;
 esac
 
+_json_out=$(env XDG_CONFIG_HOME="$_test_tmp/config" XDG_CACHE_HOME="$_test_tmp/cache" \
+    "$repo_dir/tomatoplay" --json probe </dev/null 2>"$_test_tmp/stderr") && _json_rc=0 || _json_rc=$?
+[ "$_json_rc" -eq 1 ] || fail 'probe: expected exit 1 for empty input'
+case "$_json_out" in
+    *'"stage":"probe"'*) ;;
+    *) fail "probe: expected probe stage, got: $_json_out" ;;
+esac
+
 printf 'JSON mode checks passed.\n'
