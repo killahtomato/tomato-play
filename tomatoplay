@@ -23,6 +23,14 @@ warn() {
     printf "\33[2K\r\033[1;33m%s\033[0m\n" "$*"
 }
 
+# JSON machine mode: detected before any interactive setup so external callers
+# can drive the provider layer without a terminal. Dispatched in json_dispatch.
+_json_mode=0
+if [ "${1:-}" = "--json" ]; then
+    _json_mode=1
+    shift
+fi
+
 tagline() {
     printf '%s\n' \
         "Watch anime & movies, right from your terminal :3" \
@@ -163,6 +171,11 @@ help_info() {
         Wipe the cache and start fresh
       --no-cache
         Disable the cache for this run
+      --json ACTION [ARGS]
+        Machine-readable mode: emit one JSON object on stdout, diagnostics on
+        stderr, and skip all interactive prompts. Actions: search QUERY
+        [SOURCE], episodes SOURCE ID, resolve SOURCE ID EP MODE,
+        audio-modes SOURCE ID EP, trending.
       -U, --update
         Update the script
 
@@ -274,6 +287,25 @@ tp_curl_status() {
             -o /dev/null -w '%{http_code}' "$@" 2>/dev/null)" || return 1
     fi
     printf '%s\n' "$_http_status"
+}
+
+# Shared HTTP environment: TLS ciphers, user agent, proxy flag, and the curl
+# binary. Called once by the normal Setup path and by --json before providers
+# run, so both paths use identical request settings.
+http_env() {
+    ciphers='ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305'
+    tls13_ciphers='TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256'
+    agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+    _px_flag=""
+    [ -n "${TOMATOPLAY_PROXY:-}" ] && _px_flag="-x $TOMATOPLAY_PROXY"
+
+    curl_exe=$(dep_ch_failover "curl_firefox135,curl_chrome136,curl_chrome116,curl_ff117,curl") || die "Program curl not found"
+
+    case "$(uname -a | cut -d " " -f 1,3-)" in
+        *Darwin*) cipher_flag="--ciphers $ciphers --tls13-ciphers $tls13_ciphers" ;;
+        *) cipher_flag="" ;;
+    esac
 }
 
 # Load provider adapters after the shared HTTP helper is defined.
@@ -401,6 +433,192 @@ _cpe_key() {
     printf "%s" "$_ck" | cksum | cut -d " " -f 1
 }
 
+# ============================================================================
+# JSON machine mode
+# ============================================================================
+# One JSON object on stdout, diagnostics on stderr. Reuses the same provider
+# functions and cache as the interactive CLI, so results stay identical.
+
+json_escape() {
+    printf '%s' "$1" | sed -e 's|\\|\\\\|g' -e 's|"|\\"|g' -e 's|\t|\\t|g' -e 's|\r|\\r|g'
+}
+
+json_error() {
+    printf '{"ok":false,"version":1,"stage":"%s","error":"%s"}\n' \
+        "$(json_escape "${1:-}")" "$(json_escape "${2:-unknown error}")"
+    return 1
+}
+
+json_search() {
+    _js_q="${1:-}"
+    _js_src="${2:-all}"
+    [ -n "$_js_q" ] || { json_error search "missing query"; return 1; }
+    case "$_js_src" in
+        all|anidb|aniwatch|gogoanime|9anime|animeplanet|anisearch|youtube|bilibili|miruro|animegg|hianime|nyaa|tpb) ;;
+        *) json_error search "unknown source: $_js_src"; return 1 ;;
+    esac
+    _js_out="$(provider_search "$_js_src" "$_js_q" 2>/dev/null)" || {
+        json_error search "no results"; return 1; }
+    [ -n "$_js_out" ] || { json_error search "no results"; return 1; }
+    _js_tmp="$(mktemp)" || { json_error search "temporary file unavailable"; return 1; }
+    printf '%s\n' "$_js_out" >"$_js_tmp"
+    _js_body=""
+    while IFS="$(printf '\t')" read -r _js_cid _js_title; do
+        [ -n "$_js_cid" ] || continue
+        _js_row_source="$_js_src"
+        _js_row_id="$_js_cid"
+        if [ "$_js_src" = "all" ]; then
+            _js_row_source="${_js_cid%%:*}"
+            _js_row_id="${_js_cid#*:}"
+        fi
+        _js_body="$_js_body{\"source\":\"$(json_escape "$_js_row_source")\",\"id\":\"$(json_escape "$_js_row_id")\",\"title\":\"$(json_escape "$_js_title")\"},"
+    done <"$_js_tmp"
+    rm -f "$_js_tmp"
+    [ -n "$_js_body" ] || { json_error search "no results"; return 1; }
+    _js_body="${_js_body%,}"
+    printf '{"ok":true,"version":1,"query":"%s","results":[%s]}\n' \
+        "$(json_escape "$_js_q")" "$_js_body"
+}
+
+json_episodes() {
+    _jp_src="${1:-}"
+    _jp_id="${2:-}"
+    [ -n "$_jp_src" ] && [ -n "$_jp_id" ] || { json_error episodes "missing source or id"; return 1; }
+    _jp_out="$(provider_episodes "$_jp_src" "$_jp_id" 2>/dev/null)" || {
+        json_error episodes "no episodes"; return 1; }
+    [ -n "$_jp_out" ] || { json_error episodes "no episodes"; return 1; }
+    _jp_tmp="$(mktemp)" || { json_error episodes "temporary file unavailable"; return 1; }
+    printf '%s\n' "$_jp_out" >"$_jp_tmp"
+    _jp_body=""
+    while IFS="$(printf '\t')" read -r _jp_key _jp_num _jp_title; do
+        [ -n "$_jp_key" ] || continue
+        _jp_body="$_jp_body{\"key\":\"$(json_escape "$_jp_key")\",\"number\":\"$(json_escape "$_jp_num")\",\"title\":\"$(json_escape "$_jp_title")\"},"
+    done <"$_jp_tmp"
+    rm -f "$_jp_tmp"
+    [ -n "$_jp_body" ] || { json_error episodes "no episodes"; return 1; }
+    _jp_body="${_jp_body%,}"
+    printf '{"ok":true,"version":1,"source":"%s","id":"%s","episodes":[%s]}\n' \
+        "$(json_escape "$_jp_src")" "$(json_escape "$_jp_id")" "$_jp_body"
+}
+
+json_resolve() {
+    _jv_src="${1:-}"
+    _jv_id="${2:-}"
+    _jv_ep="${3:-}"
+    _jv_mode="${4:-sub}"
+    [ -n "$_jv_src" ] && [ -n "$_jv_id" ] && [ -n "$_jv_ep" ] || {
+        json_error resolve "missing arguments"; return 1; }
+    case "$_jv_mode" in dub) ;; *) _jv_mode=sub ;; esac
+    _jv_links="$(provider_m3u8 "$_jv_src" "$_jv_id" "$_jv_ep" "$_jv_mode" 2>/dev/null)" || {
+        json_error resolve "no streams"; return 1; }
+    [ -n "$_jv_links" ] || { json_error resolve "no streams"; return 1; }
+    _jv_ref=""
+    _jv_origin=""
+    _jv_sub=""
+    case "$_jv_src" in
+        animegg)
+            _jv_ref="$(animegg_referrer_for_episode "$_jv_ep" "$_jv_mode" 2>/dev/null)" || _jv_ref=""
+            _jv_origin="${animegg_base:-https://www.animegg.org}"
+            ;;
+        hianime)
+            _jv_ref="$(hianime_referrer_for_episode "$_jv_ep" 2>/dev/null)" || _jv_ref=""
+            _jv_sub="$(hianime_sub_for_episode "$_jv_ep" 2>/dev/null)" || _jv_sub=""
+            _jv_origin="${_jv_ref%/}"
+            ;;
+        miruro)
+            _jv_ref="https://www.miruro.to/"
+            _jv_origin="https://www.miruro.to"
+            ;;
+    esac
+    _jv_tmp="$(mktemp)" || { json_error resolve "temporary file unavailable"; return 1; }
+    printf '%s\n' "$_jv_links" >"$_jv_tmp"
+    _jv_body=""
+    while IFS= read -r _jv_line; do
+        [ -n "$_jv_line" ] || continue
+        _jv_q="${_jv_line%%>*}"
+        _jv_q="$(printf '%s' "$_jv_q" | sed 's|[[:space:]]*$||')"
+        _jv_url="${_jv_line#*>}"
+        [ -n "$_jv_url" ] || continue
+        case "$_jv_url" in
+            *[mM]3[uU]8*) _jv_type="hls" ;;
+            *[mM][pP][dD]) _jv_type="dash" ;;
+            magnet:*) _jv_type="torrent" ;;
+            *) _jv_type="video" ;;
+        esac
+        _jv_playable="false"
+        if printf '%s\n' "$_jv_line" | _probe_playable >/dev/null 2>&1; then
+            _jv_playable="true"
+        fi
+        _jv_obj="{\"quality\":\"$(json_escape "$_jv_q")\",\"url\":\"$(json_escape "$_jv_url")\",\"type\":\"$_jv_type\",\"playable\":$_jv_playable"
+        [ -n "$_jv_ref" ] && _jv_obj="$_jv_obj,\"referrer\":\"$(json_escape "$_jv_ref")\",\"origin\":\"$(json_escape "$_jv_origin")"
+        _jv_obj="$_jv_obj}"
+        _jv_body="$_jv_body$_jv_obj,"
+    done <"$_jv_tmp"
+    rm -f "$_jv_tmp"
+    [ -n "$_jv_body" ] || { json_error resolve "no streams"; return 1; }
+    _jv_body="${_jv_body%,}"
+    _jv_subs=""
+    [ -n "$_jv_sub" ] && _jv_subs="{\"lang\":\"eng\",\"url\":\"$(json_escape "$_jv_sub")\"}"
+    printf '{"ok":true,"version":1,"source":"%s","id":"%s","episode_key":"%s","mode":"%s","streams":[%s],"subtitles":[%s]}\n' \
+        "$(json_escape "$_jv_src")" "$(json_escape "$_jv_id")" "$(json_escape "$_jv_ep")" \
+        "$(json_escape "$_jv_mode")" "$_jv_body" "$_jv_subs"
+}
+
+json_audio_modes() {
+    _jm_src="${1:-}"
+    _jm_id="${2:-}"
+    _jm_ep="${3:-}"
+    [ -n "$_jm_src" ] && [ -n "$_jm_id" ] && [ -n "$_jm_ep" ] || {
+        json_error audio-modes "missing arguments"; return 1; }
+    _jm_out="$(provider_audio_modes "$_jm_src" "$_jm_id" "$_jm_ep" 2>/dev/null)" || {
+        json_error audio-modes "unsupported"; return 1; }
+    [ -n "$_jm_out" ] || { json_error audio-modes "unsupported"; return 1; }
+    _jm_body=""
+    for _jm_mode in $_jm_out; do
+        _jm_body="$_jm_body\"$(json_escape "$_jm_mode")\","
+    done
+    _jm_body="${_jm_body%,}"
+    printf '{"ok":true,"version":1,"modes":[%s]}\n' "$_jm_body"
+}
+
+json_trending() {
+    _jt_out="$(provider_trending aniwatch 2>/dev/null)" || {
+        json_error trending "unavailable"; return 1; }
+    [ -n "$_jt_out" ] || { json_error trending "unavailable"; return 1; }
+    _jt_tmp="$(mktemp)" || { json_error trending "temporary file unavailable"; return 1; }
+    printf '%s\n' "$_jt_out" >"$_jt_tmp"
+    _jt_body=""
+    while IFS="$(printf '\t')" read -r _jt_id _jt_title; do
+        [ -n "$_jt_id" ] || continue
+        _jt_body="$_jt_body{\"source\":\"aniwatch\",\"id\":\"$(json_escape "$_jt_id")\",\"title\":\"$(json_escape "$_jt_title")\"},"
+    done <"$_jt_tmp"
+    rm -f "$_jt_tmp"
+    [ -n "$_jt_body" ] || { json_error trending "unavailable"; return 1; }
+    _jt_body="${_jt_body%,}"
+    printf '{"ok":true,"version":1,"results":[%s]}\n' "$_jt_body"
+}
+
+json_dispatch() {
+    _jd_action="${1:-}"
+    [ -n "$_jd_action" ] || { json_error "" "missing action"; return 1; }
+    shift
+    case "$_jd_action" in
+        search) json_search "$@" ;;
+        episodes) json_episodes "$@" ;;
+        resolve) json_resolve "$@" ;;
+        audio-modes) json_audio_modes "$@" ;;
+        trending) json_trending "$@" ;;
+        *) json_error "" "unknown action: $_jd_action"; return 1 ;;
+    esac
+}
+
+if [ "$_json_mode" = 1 ]; then
+    http_env
+    cache_init
+    json_dispatch "$@"
+    exit $?
+fi
+
 # List playable media for local playback: a single file as-is, or every video
 # file under a folder (paths + names relative to that folder so menus stay
 # readable). External subtitle files are left alone — players pick them up by
@@ -481,14 +699,7 @@ for _p in aniwatch gogoanime 9anime anidb animeplanet anisearch youtube bilibili
 # Setup
 # ============================================================================
 
-ciphers='ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305'
-tls13_ciphers='TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256'
-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-
-# Global proxy: applied to every provider request. Handy for geo-locked
-# sources (bilibili) — or just use a VPN, which curl follows anyway.
-_px_flag=""
-[ -n "${TOMATOPLAY_PROXY:-}" ] && _px_flag="-x $TOMATOPLAY_PROXY"
+http_env
 
 # ============================================================================
 # Config file: ~/.config/tomato-play/tomato-playrc
@@ -547,11 +758,8 @@ log_episode="${TOMATOPLAY_LOG:-1}"
 quality="${TOMATOPLAY_QUALITY:-best}"
 source="${TOMATOPLAY_DEFAULT_SOURCE:-all}"
 
-curl_exe=$(dep_ch_failover "curl_firefox135,curl_chrome136,curl_chrome116,curl_ff117,curl") || die "Program curl not found"
-
 case "$(uname -a | cut -d " " -f 1,3-)" in
     *Darwin*)
-        cipher_flag="--ciphers $ciphers --tls13-ciphers $tls13_ciphers"
         player_function="${TOMATOPLAY_PLAYER:-$(dep_ch_failover "iina,/Applications/IINA.app/Contents/MacOS/iina-cli,mpv,vlc")}" || die 'No player found'
         ;;
     *ndroid*) player_function="${TOMATOPLAY_PLAYER:-android_mpv}" ;;
