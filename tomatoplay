@@ -516,6 +516,8 @@ json_resolve() {
     _jv_ref=""
     _jv_origin=""
     _jv_sub=""
+    _jv_skip_intro=""
+    _jv_skip_outro=""
     case "$_jv_src" in
         animegg)
             _jv_ref="$(animegg_referrer_for_episode "$_jv_ep" "$_jv_mode" 2>/dev/null)" || _jv_ref=""
@@ -536,6 +538,10 @@ json_resolve() {
     _jv_body=""
     while IFS= read -r _jv_line; do
         [ -n "$_jv_line" ] || continue
+        case "$_jv_line" in
+            skip:intro*) _jv_skip_intro="${_jv_line#*>}"; continue ;;
+            skip:outro*)  _jv_skip_outro="${_jv_line#*>}"; continue ;;
+        esac
         _jv_q="${_jv_line%%>*}"
         _jv_q="$(printf '%s' "$_jv_q" | sed 's|[[:space:]]*$||')"
         _jv_url="${_jv_line#*>}"
@@ -560,9 +566,18 @@ json_resolve() {
     _jv_body="${_jv_body%,}"
     _jv_subs=""
     [ -n "$_jv_sub" ] && _jv_subs="{\"lang\":\"eng\",\"url\":\"$(json_escape "$_jv_sub")\"}"
-    printf '{"ok":true,"version":1,"source":"%s","id":"%s","episode_key":"%s","mode":"%s","streams":[%s],"subtitles":[%s]}\n' \
+    _jv_skip=""
+    if [ -n "$_jv_skip_intro" ]; then
+        _jv_skip="\"intro\":{\"start\":${_jv_skip_intro%%:*},\"end\":${_jv_skip_intro#*:}}"
+    fi
+    if [ -n "$_jv_skip_outro" ]; then
+        [ -n "$_jv_skip" ] && _jv_skip="$_jv_skip,"
+        _jv_skip="$_jv_skip\"credits\":{\"start\":${_jv_skip_outro%%:*},\"end\":${_jv_skip_outro#*:}}"
+    fi
+    [ -n "$_jv_skip" ] && _jv_skip=",\"skip\":{$_jv_skip}"
+    printf '{"ok":true,"version":1,"source":"%s","id":"%s","episode_key":"%s","mode":"%s","streams":[%s],"subtitles":[%s]%s}\n' \
         "$(json_escape "$_jv_src")" "$(json_escape "$_jv_id")" "$(json_escape "$_jv_ep")" \
-        "$(json_escape "$_jv_mode")" "$_jv_body" "$_jv_subs"
+        "$(json_escape "$_jv_mode")" "$_jv_body" "$_jv_subs" "$_jv_skip"
 }
 
 json_audio_modes() {

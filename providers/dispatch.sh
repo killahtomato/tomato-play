@@ -85,7 +85,7 @@ provider_m3u8() {
     _episode_key="$3"
     _mode="${4:-sub}"
     case "$_mode" in dub) ;; *) _mode=sub ;; esac
-    _key="$(_cpe_key "m3u8-v2" "$_provider" "$_content_id" "$_episode_key" "$_mode")"
+    _key="$(_cpe_key "m3u8-v3" "$_provider" "$_content_id" "$_episode_key" "$_mode")"
     if cache_read "$_key" 30; then
         return 0
     fi

@@ -79,10 +79,19 @@ hianime_m3u8() {
     [ -z "$_hjm_referer" ] && return 1
     # Master playlist lists relative quality variants; fetch it with the referer.
     _hjm_body="$($curl_exe -sL -A "$agent" --max-time 15 $cipher_flag $_px_flag -e "$_hjm_referer" "$_hjm_master" 2>/dev/null)" || return 1
-    printf "%s" "$_hjm_body" | awk '
+    _hjm_rows="$(printf "%s" "$_hjm_body" | awk '
         /^#EXT-X-STREAM-INF/ { if (match($0, /RESOLUTION=[0-9]+x([0-9]+)/, m)) q = m[1]; next }
         NF { if (q != "") { print q "p >" $0; q = "" } }' \
-        | sed "s| >| >${_hjm_master%/*}/|; s| >${_hjm_master%/*}/http| >http|" | sort -g -r -s
+        | sed "s| >| >${_hjm_master%/*}/|; s| >${_hjm_master%/*}/http| >http|" | sort -g -r -s)"
+    [ -n "$_hjm_rows" ] || return 1
+    printf '%s\n' "$_hjm_rows"
+    for _hjm_kind in intro outro; do
+        _hjm_obj="$(printf '%s' "$_hjm_json" | grep -oE "\"$_hjm_kind\":[[:space:]]*\{[^}]*\}" | head -n 1)"
+        [ -n "$_hjm_obj" ] || continue
+        _hjm_start="$(printf '%s' "$_hjm_obj" | grep -oE '[0-9]+(\.[0-9]+)?' | sed -n '1p')"
+        _hjm_end="$(printf '%s' "$_hjm_obj" | grep -oE '[0-9]+(\.[0-9]+)?' | sed -n '2p')"
+        [ -n "$_hjm_start" ] && [ -n "$_hjm_end" ] && printf 'skip:%s >%s:%s\n' "$_hjm_kind" "$_hjm_start" "$_hjm_end"
+    done
 }
 
 hianime_audio_modes() {
